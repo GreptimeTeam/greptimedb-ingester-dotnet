@@ -62,11 +62,17 @@ public class NameSanitizerTests
     [Theory]
     [InlineData("table123", "table123")]
     [InlineData("Table123Name", "table123_name")]
-    [InlineData("123table", "123table")]
     public void Sanitize_WithNumbers_PreservesNumbers(string input, string expected)
     {
         var result = NameSanitizer.Sanitize(input);
         result.Should().Be(expected);
+    }
+
+    [Fact]
+    public void Sanitize_StartsWithNumber_ThrowsArgumentException()
+    {
+        var act = () => NameSanitizer.Sanitize("123table");
+        act.Should().Throw<ArgumentException>();
     }
 
     [Fact]
@@ -79,10 +85,16 @@ public class NameSanitizerTests
     [Theory]
     [InlineData("a", "a")]
     [InlineData("A", "a")]
-    [InlineData("_", "_")]
     public void Sanitize_SingleCharacter_Succeeds(string input, string expected)
     {
         var result = NameSanitizer.Sanitize(input);
         result.Should().Be(expected);
+    }
+
+    [Fact]
+    public void Sanitize_OnlyUnderscore_ThrowsArgumentException()
+    {
+        var act = () => NameSanitizer.Sanitize("_");
+        act.Should().Throw<ArgumentException>();
     }
 }

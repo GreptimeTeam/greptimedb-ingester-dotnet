@@ -26,13 +26,13 @@ public sealed class GreptimeClientTests : IAsyncLifetime, IDisposable
         };
     }
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         _client = new GreptimeClient(_options);
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_client != null)
         {

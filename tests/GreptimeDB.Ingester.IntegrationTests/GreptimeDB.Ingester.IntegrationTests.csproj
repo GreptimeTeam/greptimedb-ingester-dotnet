@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
-    <!-- Allow underscores in test method names -->
-    <NoWarn>$(NoWarn);CA1707</NoWarn>
+    <!-- Allow underscores in test method names; xUnit1051: CancellationToken suggestion -->
+    <NoWarn>$(NoWarn);CA1707;xUnit1051</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
