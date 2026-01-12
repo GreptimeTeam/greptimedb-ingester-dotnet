@@ -16,6 +16,7 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  GREPTIMEDB_VERSION: "latest"
 
 jobs:
   build:
@@ -46,5 +47,47 @@ jobs:
       - name: Build
         run: dotnet build --no-restore --configuration Release
 
-      - name: Test
-        run: dotnet test --no-build --configuration Release --verbosity normal
+      - name: Unit Tests
+        run: dotnet test tests/GreptimeDB.Ingester.Tests --no-build --configuration Release --verbosity normal
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+
+    services:
+      greptimedb:
+        image: greptime/greptimedb:${{ env.GREPTIMEDB_VERSION }}
+        ports:
+          - 4000:4000
+          - 4001:4001
+          - 4002:4002
+          - 4003:4003
+        options: >-
+          --health-cmd "curl -f http://localhost:4000/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release
+
+      - name: Integration Tests
+        run: dotnet test tests/GreptimeDB.Ingester.IntegrationTests --configuration Release --verbosity normal
+        env:
+          GREPTIMEDB_ENDPOINT: http://localhost:4001
+          GREPTIMEDB_DATABASE: public
