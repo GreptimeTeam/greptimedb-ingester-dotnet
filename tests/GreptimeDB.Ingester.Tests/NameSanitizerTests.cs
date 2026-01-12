@@ -46,7 +46,7 @@ public class NameSanitizerTests
     {
         var longName = new string('a', 150);
         var result = NameSanitizer.Sanitize(longName);
-        result.Length.Should().BeLessOrEqualTo(99);
+        result.Length.Should().BeLessThanOrEqualTo(99);
     }
 
     [Theory]
