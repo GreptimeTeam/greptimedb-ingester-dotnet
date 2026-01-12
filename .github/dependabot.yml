@@ -11,6 +11,8 @@ updates:
       microsoft:
         patterns:
           - "Microsoft.*"
+        exclude-patterns:
+          - "Microsoft.NET.Test.Sdk"
       grpc:
         patterns:
           - "Grpc.*"
