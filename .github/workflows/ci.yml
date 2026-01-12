@@ -54,25 +54,39 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
 
-    services:
-      greptimedb:
-        image: greptime/greptimedb:v1.0.0-beta.4
-        ports:
-          - 4000:4000
-          - 4001:4001
-          - 4002:4002
-          - 4003:4003
-        options: >-
-          --health-cmd "curl -f http://localhost:4000/health || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           submodules: recursive
+
+      - name: Start GreptimeDB
+        run: |
+          docker run -d \
+            -p 4000:4000 \
+            -p 4001:4001 \
+            -p 4002:4002 \
+            -p 4003:4003 \
+            --name greptimedb \
+            greptime/greptimedb:v1.0.0-beta.4 standalone start \
+            --http-addr 0.0.0.0:4000 \
+            --rpc-bind-addr 0.0.0.0:4001 \
+            --mysql-addr 0.0.0.0:4002 \
+            --postgres-addr 0.0.0.0:4003
+
+      - name: Wait for GreptimeDB
+        run: |
+          for i in {1..30}; do
+            if curl -sf http://localhost:4000/health; then
+              echo "GreptimeDB is ready"
+              exit 0
+            fi
+            echo "Waiting for GreptimeDB... ($i/30)"
+            sleep 2
+          done
+          echo "GreptimeDB failed to start"
+          docker logs greptimedb
+          exit 1
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
