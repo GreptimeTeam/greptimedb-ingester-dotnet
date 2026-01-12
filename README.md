@@ -1,6 +1,15 @@
 # GreptimeDB .NET Ingester
 
+[![CI](https://github.com/GreptimeTeam/greptimedb-ingester-dotnet/actions/workflows/ci.yml/badge.svg)](https://github.com/GreptimeTeam/greptimedb-ingester-dotnet/actions/workflows/ci.yml)
+[![NuGet](https://img.shields.io/nuget/v/GreptimeDB.Ingester.svg)](https://www.nuget.org/packages/GreptimeDB.Ingester)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+![.NET](https://img.shields.io/badge/.NET-6.0%20%7C%207.0%20%7C%208.0%20%7C%209.0-purple)
+
 .NET SDK for writing data to [GreptimeDB](https://github.com/GreptimeTeam/greptimedb).
+
+> **Warning**
+> This project is under heavy development. APIs may change without notice.
+> Use at your own risk in production environments.
 
 ## Installation
 
