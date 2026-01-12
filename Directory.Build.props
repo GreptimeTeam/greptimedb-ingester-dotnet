@@ -1,0 +1,24 @@
+<Project>
+  <PropertyGroup>
+    <TargetFrameworks>net6.0;net7.0;net8.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CS1591: Missing XML comment, CA1720: Identifier contains type name (intentional for ColumnDataType enum) -->
+    <NoWarn>$(NoWarn);CS1591;CA1720</NoWarn>
+
+    <!-- Package metadata -->
+    <Authors>GreptimeTeam</Authors>
+    <Company>Greptime Inc.</Company>
+    <Copyright>Copyright (c) Greptime Inc. All rights reserved.</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/GreptimeTeam/greptimedb-ingester-dotnet</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/GreptimeTeam/greptimedb-ingester-dotnet</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>greptimedb;timeseries;database;ingester;grpc</PackageTags>
+  </PropertyGroup>
+</Project>

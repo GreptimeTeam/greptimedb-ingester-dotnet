@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>GreptimeDB.Ingester.Grpc</PackageId>
+    <Description>Generated gRPC client code for GreptimeDB</Description>
+    <Version>1.0.0</Version>
+    <!-- Disable doc generation for generated code -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1570</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="All" />
+    <PackageReference Include="Google.Protobuf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="..\..\proto\proto\greptime\v1\common.proto" GrpcServices="None" ProtoRoot="..\..\proto\proto" />
+    <Protobuf Include="..\..\proto\proto\greptime\v1\column.proto" GrpcServices="None" ProtoRoot="..\..\proto\proto" />
+    <Protobuf Include="..\..\proto\proto\greptime\v1\row.proto" GrpcServices="None" ProtoRoot="..\..\proto\proto" />
+    <Protobuf Include="..\..\proto\proto\greptime\v1\ddl.proto" GrpcServices="None" ProtoRoot="..\..\proto\proto" />
+    <Protobuf Include="..\..\proto\proto\greptime\v1\prom.proto" GrpcServices="None" ProtoRoot="..\..\proto\proto" />
+    <Protobuf Include="..\..\proto\proto\greptime\v1\database.proto" GrpcServices="Client" ProtoRoot="..\..\proto\proto" />
+    <Protobuf Include="..\..\proto\proto\greptime\v1\health.proto" GrpcServices="Client" ProtoRoot="..\..\proto\proto" />
+  </ItemGroup>
+
+</Project>

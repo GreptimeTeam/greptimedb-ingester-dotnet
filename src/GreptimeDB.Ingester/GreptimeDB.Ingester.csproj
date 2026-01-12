@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>GreptimeDB.Ingester</PackageId>
+    <Description>GreptimeDB .NET ingester SDK for writing time-series data via gRPC</Description>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <!-- Allow test project to access internal types -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="GreptimeDB.Ingester.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- gRPC -->
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Google.Protobuf" />
+
+    <!-- Arrow Flight -->
+    <PackageReference Include="Apache.Arrow" />
+    <PackageReference Include="Apache.Arrow.Flight" />
+
+    <!-- DI and Configuration -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GreptimeDB.Ingester.Grpc\GreptimeDB.Ingester.Grpc.csproj" />
+  </ItemGroup>
+
+</Project>

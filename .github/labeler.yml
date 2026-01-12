@@ -1,0 +1,47 @@
+# Documentation
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - "docs/**"
+
+# Source code
+source:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/**/*.cs"
+
+# Tests
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "tests/**/*.cs"
+
+# Samples
+samples:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "samples/**"
+
+# Build & CI
+build:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "*.props"
+          - "*.sln"
+          - "**/*.csproj"
+          - ".github/**"
+
+# Dependencies
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "Directory.Packages.props"
+          - ".github/dependabot.yml"
+
+# Protocol
+proto:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "proto/**"
+          - "src/GreptimeDB.Ingester.Grpc/**"
