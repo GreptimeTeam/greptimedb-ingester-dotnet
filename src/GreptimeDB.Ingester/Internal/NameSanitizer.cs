@@ -10,8 +10,8 @@ internal static class NameSanitizer
 {
     private const int MaxLength = 99;
 
-    private static readonly Regex s_multipleUnderscoreRegex = new(@"_+", RegexOptions.Compiled);
-    private static readonly Regex s_validIdentifierRegex = new(@"^[a-z_][a-z0-9_]*$", RegexOptions.Compiled);
+    private static readonly Regex MultipleUnderscoreRegex = new(@"_+", RegexOptions.Compiled);
+    private static readonly Regex ValidIdentifierRegex = new(@"^[a-z_][a-z0-9_]*$", RegexOptions.Compiled);
 
     /// <summary>
     /// Sanitize name to snake_case lowercase, max 99 chars.
@@ -89,7 +89,7 @@ internal static class NameSanitizer
 
         // Remove consecutive underscores and leading/trailing underscores
         var result = sb.ToString();
-        result = s_multipleUnderscoreRegex.Replace(result, "_");
+        result = MultipleUnderscoreRegex.Replace(result, "_");
         result = result.Trim('_');
 
         return result;
@@ -97,6 +97,6 @@ internal static class NameSanitizer
 
     private static bool IsValidIdentifier(string name)
     {
-        return !string.IsNullOrEmpty(name) && s_validIdentifierRegex.IsMatch(name);
+        return !string.IsNullOrEmpty(name) && ValidIdentifierRegex.IsMatch(name);
     }
 }

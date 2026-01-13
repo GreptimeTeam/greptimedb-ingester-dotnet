@@ -1,5 +1,4 @@
 using Apache.Arrow;
-using Apache.Arrow.Memory;
 using Apache.Arrow.Types;
 using GreptimeDB.Ingester.Types;
 
@@ -13,16 +12,7 @@ internal sealed class RecordBatchBuilder : IDisposable
     private static readonly DateTimeOffset UnixEpoch = new(1970, 1, 1, 0, 0, 0, TimeSpan.Zero);
     private static readonly DateTime UnixEpochDateTime = new(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-    private readonly MemoryAllocator _allocator;
     private bool _disposed;
-
-    /// <summary>
-    /// Creates a new RecordBatchBuilder with the default native memory allocator.
-    /// </summary>
-    public RecordBatchBuilder()
-    {
-        _allocator = new NativeMemoryAllocator();
-    }
 
     /// <summary>
     /// Builds an Apache Arrow RecordBatch from a GreptimeDB Table.
@@ -103,20 +93,18 @@ internal sealed class RecordBatchBuilder : IDisposable
 
     #region Array Builders
 
+    // Note: Arrow's builder API lacks a unified generic interface (Build() requires allocator,
+    // StringArray.Builder uses different interface), so we keep explicit methods for each type.
+
     private static BooleanArray BuildBooleanArray(Table.Table table, int columnIndex)
     {
         var builder = new BooleanArray.Builder();
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is bool value)
+                builder.Append(value);
             else
-            {
-                builder.Append((bool)value);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
@@ -126,15 +114,10 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new Int8Array.Builder();
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is sbyte value)
+                builder.Append(value);
             else
-            {
-                builder.Append((sbyte)value);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
@@ -144,15 +127,10 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new Int16Array.Builder();
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is short value)
+                builder.Append(value);
             else
-            {
-                builder.Append((short)value);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
@@ -162,15 +140,10 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new Int32Array.Builder();
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is int value)
+                builder.Append(value);
             else
-            {
-                builder.Append((int)value);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
@@ -180,15 +153,10 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new Int64Array.Builder();
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is long value)
+                builder.Append(value);
             else
-            {
-                builder.Append((long)value);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
@@ -198,15 +166,10 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new UInt8Array.Builder();
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is byte value)
+                builder.Append(value);
             else
-            {
-                builder.Append((byte)value);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
@@ -216,15 +179,10 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new UInt16Array.Builder();
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is ushort value)
+                builder.Append(value);
             else
-            {
-                builder.Append((ushort)value);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
@@ -234,15 +192,10 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new UInt32Array.Builder();
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is uint value)
+                builder.Append(value);
             else
-            {
-                builder.Append((uint)value);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
@@ -252,15 +205,10 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new UInt64Array.Builder();
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is ulong value)
+                builder.Append(value);
             else
-            {
-                builder.Append((ulong)value);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
@@ -270,15 +218,10 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new FloatArray.Builder();
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is float value)
+                builder.Append(value);
             else
-            {
-                builder.Append((float)value);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
@@ -288,15 +231,10 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new DoubleArray.Builder();
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is double value)
+                builder.Append(value);
             else
-            {
-                builder.Append((double)value);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
@@ -306,15 +244,10 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new StringArray.Builder();
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is string value)
+                builder.Append(value);
             else
-            {
-                builder.Append((string)value);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
@@ -324,16 +257,10 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new BinaryArray.Builder();
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is byte[] value)
+                builder.Append(value.AsSpan());
             else
-            {
-                var bytes = (byte[])value;
-                builder.Append(bytes.AsSpan());
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
@@ -343,41 +270,23 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new Date32Array.Builder();
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is int days)
+                builder.Append(UnixEpochDateTime.AddDays(days));
             else
-            {
-                // Value is stored as int (days since epoch), convert back to DateTime
-                var days = (int)value;
-                var dateTime = UnixEpochDateTime.AddDays(days);
-                builder.Append(dateTime);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
 
     private static TimestampArray BuildTimestampArray(Table.Table table, int columnIndex, TimeUnit unit)
     {
-        var type = new TimestampType(unit, (string?)null);
-        var builder = new TimestampArray.Builder(type);
+        var builder = new TimestampArray.Builder(new TimestampType(unit, (string?)null));
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is long timestamp)
+                builder.Append(ConvertToDateTimeOffset(timestamp, unit));
             else
-            {
-                // Value is stored as long (time since epoch in the appropriate unit)
-                // Convert back to DateTimeOffset
-                var timestamp = (long)value;
-                var dateTimeOffset = ConvertToDateTimeOffset(timestamp, unit);
-                builder.Append(dateTimeOffset);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
@@ -397,38 +306,26 @@ internal sealed class RecordBatchBuilder : IDisposable
 
     private static Time32Array BuildTime32Array(Table.Table table, int columnIndex, TimeUnit unit)
     {
-        var type = new Time32Type(unit);
-        var builder = new Time32Array.Builder(type);
+        var builder = new Time32Array.Builder(new Time32Type(unit));
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is long value)
+                builder.Append((int)value);
             else
-            {
-                builder.Append((int)(long)value);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
 
     private static Time64Array BuildTime64Array(Table.Table table, int columnIndex, TimeUnit unit)
     {
-        var type = new Time64Type(unit);
-        var builder = new Time64Array.Builder(type);
+        var builder = new Time64Array.Builder(new Time64Type(unit));
         foreach (var row in table.Rows)
         {
-            var value = row[columnIndex];
-            if (value == null)
-            {
-                builder.AppendNull();
-            }
+            if (row[columnIndex] is long value)
+                builder.Append(value);
             else
-            {
-                builder.Append((long)value);
-            }
+                builder.AppendNull();
         }
         return builder.Build();
     }
@@ -455,6 +352,5 @@ internal sealed class RecordBatchBuilder : IDisposable
         }
 
         _disposed = true;
-        // NativeMemoryAllocator doesn't implement IDisposable, so nothing to dispose here
     }
 }

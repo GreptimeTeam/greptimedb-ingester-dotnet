@@ -6,6 +6,7 @@
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- CS1591: Missing XML comment, CA1720: Identifier contains type name (intentional for ColumnDataType enum) -->
     <NoWarn>$(NoWarn);CS1591;CA1720</NoWarn>

@@ -1,8 +1,8 @@
 using System.Threading.Channels;
 using Greptime.V1;
-using Grpc.Core;
 using GreptimeDB.Ingester.Exceptions;
 using GreptimeDB.Ingester.Internal;
+using Grpc.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -162,15 +162,14 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
 
     private async Task<uint> SendLoopAsync(CancellationToken cancellationToken)
     {
-        AsyncClientStreamingCall<GreptimeRequest, GreptimeResponse>? call = null;
+        // Note: Don't set a deadline here - streaming operations may run for extended periods.
+        // Timeout is handled in CompleteAsync which waits for this task to finish.
+        var callOptions = new CallOptions(cancellationToken: cancellationToken);
+
+        using var call = _client.HandleRequests(callOptions);
 
         try
         {
-            var callOptions = new CallOptions(
-                deadline: DateTime.UtcNow.Add(_options.WriteTimeout),
-                cancellationToken: cancellationToken);
-
-            call = _client.HandleRequests(callOptions);
             var requestStream = call.RequestStream;
 
             await foreach (var request in _channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
@@ -198,10 +197,6 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
         {
             LogStreamError(_logger, ex.Message);
             throw new GreptimeException($"Stream write failed: {ex.Message}", ex);
-        }
-        finally
-        {
-            call?.Dispose();
         }
     }
 

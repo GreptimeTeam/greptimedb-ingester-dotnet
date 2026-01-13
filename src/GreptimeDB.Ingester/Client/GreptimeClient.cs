@@ -1,9 +1,9 @@
 using Apache.Arrow.Flight.Client;
 using Greptime.V1;
-using Grpc.Core;
-using Grpc.Net.Client;
 using GreptimeDB.Ingester.Exceptions;
 using GreptimeDB.Ingester.Internal;
+using Grpc.Core;
+using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 

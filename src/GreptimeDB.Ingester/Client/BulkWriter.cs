@@ -2,9 +2,9 @@ using System.Text;
 using Apache.Arrow;
 using Apache.Arrow.Flight;
 using Apache.Arrow.Flight.Client;
-using Grpc.Core;
 using GreptimeDB.Ingester.Arrow;
 using GreptimeDB.Ingester.Exceptions;
+using Grpc.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -52,31 +52,32 @@ public sealed partial class BulkWriter : IBulkWriter
         ThrowIfCompleted();
 
         // Build the RecordBatch from the table
-        var recordBatch = _recordBatchBuilder.Build(table);
+        using var recordBatch = _recordBatchBuilder.Build(table);
 
-        try
+        // Initialize the stream on first write
+        if (_putCall == null)
         {
-            // Initialize the stream on first write
-            if (_putCall == null)
-            {
-                await InitializeStreamAsync(table.Name, recordBatch.Schema, cancellationToken)
-                    .ConfigureAwait(false);
-                _currentTableName = table.Name;
-            }
-
-            // Write the record batch (check cancellation before write since gRPC doesn't support per-write cancellation)
-            cancellationToken.ThrowIfCancellationRequested();
-            await _putCall!.RequestStream.WriteAsync(recordBatch).ConfigureAwait(false);
-
-            // Track rows written (like Go ingester does)
-            _totalRowsWritten += (uint)table.RowCount;
-
-            LogRecordBatchWritten(_logger, table.Name, table.RowCount);
+            await InitializeStreamAsync(table.Name, recordBatch.Schema, cancellationToken)
+                .ConfigureAwait(false);
+            _currentTableName = table.Name;
         }
-        finally
+        else if (_currentTableName != table.Name)
         {
-            recordBatch.Dispose();
+            throw new InvalidOperationException(
+                $"BulkWriter is bound to table '{_currentTableName}'. " +
+                $"Cannot write to different table '{table.Name}'. " +
+                "Create a new BulkWriter for each table.");
         }
+
+        // Write the record batch. Note: gRPC/Arrow Flight do not support cancelling an individual
+        // write once it has started; we only honor cancellation before beginning the write.
+        cancellationToken.ThrowIfCancellationRequested();
+        await _putCall!.RequestStream.WriteAsync(recordBatch).ConfigureAwait(false);
+
+        // Track rows written (like Go ingester does)
+        _totalRowsWritten += (uint)table.RowCount;
+
+        LogRecordBatchWritten(_logger, table.Name, table.RowCount);
     }
 
     /// <inheritdoc />
@@ -154,7 +155,7 @@ public sealed partial class BulkWriter : IBulkWriter
         headers.Add("x-greptime-db-name", _database);
 
         // Start the DoPut call with schema
-        _putCall = await _flightClient.StartPut(descriptor, schema, headers)
+        _putCall = await _flightClient.StartPut(descriptor, schema, headers, deadline: null, cancellationToken)
             .ConfigureAwait(false);
 
         LogStreamInitialized(_logger, tableName);
