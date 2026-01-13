@@ -136,6 +136,16 @@ public sealed class TableBuilder
     }
 
     /// <summary>
+    /// Gets the current column definitions.
+    /// Useful for inspecting the schema before building.
+    /// </summary>
+    /// <returns>Read-only list of column definitions.</returns>
+    public IReadOnlyList<Column> GetColumnDefinitions()
+    {
+        return _columns.AsReadOnly();
+    }
+
+    /// <summary>
     /// Builds the immutable Table instance.
     /// </summary>
     /// <returns>The constructed Table.</returns>
