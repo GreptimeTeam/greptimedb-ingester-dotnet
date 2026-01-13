@@ -49,10 +49,44 @@ await client.DisposeAsync();
 
 ## Features
 
-- Unary write via gRPC
+- **Unary Write** - Simple single-request writes via gRPC
+- **Streaming Write** - High-throughput streaming via gRPC for multiple tables
+- **Bulk Write** - Maximum throughput via Apache Arrow Flight
 - Type coercion between .NET and GreptimeDB types
 - Health check
 - DI integration
+
+## Streaming Write
+
+For high-throughput scenarios with multiple tables:
+
+```csharp
+await using var writer = client.CreateStreamIngestWriter();
+
+// Write multiple tables in a single stream
+await writer.WriteAsync(table1);
+await writer.WriteAsync(table2);
+await writer.WriteAsync(table3);
+
+var affectedRows = await writer.CompleteAsync();
+```
+
+## Bulk Write (Arrow Flight)
+
+For maximum throughput using Apache Arrow Flight protocol:
+
+```csharp
+// Note: Tables must exist before using BulkWriter
+await using var writer = client.CreateBulkWriter();
+
+await writer.WriteAsync(table1);
+await writer.WriteAsync(table2);
+
+var affectedRows = await writer.CompleteAsync();
+```
+
+> **Note**: Unlike regular gRPC writes, Arrow Flight `DoPut` does not auto-create tables.
+> Ensure tables exist before using `BulkWriter`.
 
 ## DI Integration
 
