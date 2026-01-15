@@ -260,7 +260,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         }
 
         _disposed = true;
-        DisposeFlightClient();
+        await DisposeFlightClientAsync().ConfigureAwait(false);
         await _channel.ShutdownAsync().ConfigureAwait(false);
         LogClientClosed(_logger);
     }
@@ -307,11 +307,35 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         return header;
     }
 
+    private async ValueTask DisposeFlightClientAsync()
+    {
+        if (_flightClient.IsValueCreated)
+        {
+            switch (_flightClient.Value)
+            {
+                case IAsyncDisposable asyncDisposable:
+                    await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+                    break;
+                case IDisposable disposable:
+                    disposable.Dispose();
+                    break;
+            }
+        }
+    }
+
     private void DisposeFlightClient()
     {
         if (_flightClient.IsValueCreated)
         {
-            _flightClient.Value.Dispose();
+            switch (_flightClient.Value)
+            {
+                case IDisposable disposable:
+                    disposable.Dispose();
+                    break;
+                case IAsyncDisposable asyncDisposable:
+                    asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    break;
+            }
         }
     }
 
