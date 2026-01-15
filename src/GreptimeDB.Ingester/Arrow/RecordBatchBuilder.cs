@@ -283,10 +283,18 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new TimestampArray.Builder(new TimestampType(unit, (string?)null));
         foreach (var row in table.Rows)
         {
-            if (row[columnIndex] is long timestamp)
-                builder.Append(ConvertToDateTimeOffset(timestamp, unit));
-            else
-                builder.AppendNull();
+            switch (row[columnIndex])
+            {
+                case long timestamp:
+                    builder.Append(ConvertToDateTimeOffset(timestamp, unit));
+                    break;
+                case int timestamp:
+                    builder.Append(ConvertToDateTimeOffset(timestamp, unit));
+                    break;
+                default:
+                    builder.AppendNull();
+                    break;
+            }
         }
         return builder.Build();
     }
@@ -309,10 +317,18 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new Time32Array.Builder(new Time32Type(unit));
         foreach (var row in table.Rows)
         {
-            if (row[columnIndex] is long value)
-                builder.Append((int)value);
-            else
-                builder.AppendNull();
+            switch (row[columnIndex])
+            {
+                case long value:
+                    builder.Append((int)value);
+                    break;
+                case int value:
+                    builder.Append(value);
+                    break;
+                default:
+                    builder.AppendNull();
+                    break;
+            }
         }
         return builder.Build();
     }
@@ -322,10 +338,18 @@ internal sealed class RecordBatchBuilder : IDisposable
         var builder = new Time64Array.Builder(new Time64Type(unit));
         foreach (var row in table.Rows)
         {
-            if (row[columnIndex] is long value)
-                builder.Append(value);
-            else
-                builder.AppendNull();
+            switch (row[columnIndex])
+            {
+                case long value:
+                    builder.Append(value);
+                    break;
+                case int value:
+                    builder.Append(value);
+                    break;
+                default:
+                    builder.AppendNull();
+                    break;
+            }
         }
         return builder.Build();
     }
