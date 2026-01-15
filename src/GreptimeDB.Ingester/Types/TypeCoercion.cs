@@ -45,7 +45,7 @@ internal static class TypeCoercion
             ColumnDataType.Binary => CoerceToBinary(value, columnName),
 
             ColumnDataType.Date => CoerceToDate(value, columnName),
-            ColumnDataType.DateTime => CoerceToTimestamp(value, ColumnDataType.TimestampMicrosecond, columnName),
+            ColumnDataType.DateTime => CoerceToTimestamp(value, ColumnDataType.DateTime, columnName),
 
             ColumnDataType.TimestampSecond or
             ColumnDataType.TimestampMillisecond or

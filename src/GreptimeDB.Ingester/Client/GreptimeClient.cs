@@ -1,8 +1,9 @@
+using Apache.Arrow.Flight.Client;
 using Greptime.V1;
-using Grpc.Core;
-using Grpc.Net.Client;
 using GreptimeDB.Ingester.Exceptions;
 using GreptimeDB.Ingester.Internal;
+using Grpc.Core;
+using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -18,6 +19,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
     private readonly GrpcChannel _channel;
     private readonly GreptimeDatabase.GreptimeDatabaseClient _client;
     private readonly HealthCheck.HealthCheckClient _healthClient;
+    private readonly Lazy<FlightClient> _flightClient;
     private bool _disposed;
 
     /// <summary>
@@ -36,6 +38,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         _channel = GrpcChannel.ForAddress(options.Endpoint, channelOptions);
         _client = new GreptimeDatabase.GreptimeDatabaseClient(_channel);
         _healthClient = new HealthCheck.HealthCheckClient(_channel);
+        _flightClient = new Lazy<FlightClient>(() => new FlightClient(_channel));
 
         LogClientCreated(_logger, options.Endpoint);
     }
@@ -141,6 +144,86 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
     }
 
     /// <summary>
+    /// Creates a new streaming writer for high-throughput data ingestion.
+    /// The writer supports concurrent writes from multiple threads and provides
+    /// automatic backpressure handling.
+    /// </summary>
+    /// <param name="options">Optional configuration for the stream writer.</param>
+    /// <returns>A new stream ingest writer instance.</returns>
+    /// <example>
+    /// <code>
+    /// await using var writer = client.CreateStreamIngestWriter();
+    ///
+    /// // Write tables concurrently from multiple threads
+    /// await writer.WriteAsync(table1);
+    /// await writer.WriteAsync(table2);
+    ///
+    /// // Complete the stream and get the result
+    /// var affectedRows = await writer.CompleteAsync();
+    /// </code>
+    /// </example>
+    public IStreamIngestWriter CreateStreamIngestWriter(StreamIngestWriterOptions? options = null)
+    {
+        ThrowIfDisposed();
+
+        options ??= new StreamIngestWriterOptions
+        {
+            WriteTimeout = _options.WriteTimeout
+        };
+
+        return new StreamIngestWriter(
+            _client,
+            options,
+            BuildRequestHeader,
+            _logger as ILogger<StreamIngestWriter>);
+    }
+
+    /// <summary>
+    /// Creates a new bulk writer for high-throughput data ingestion via Arrow Flight.
+    /// The writer provides efficient columnar data transfer using Apache Arrow format.
+    /// </summary>
+    /// <returns>A new bulk writer instance.</returns>
+    /// <example>
+    /// <code>
+    /// await using var writer = client.CreateBulkWriter();
+    ///
+    /// // Write tables
+    /// await writer.WriteAsync(table1);
+    /// await writer.WriteAsync(table2);
+    ///
+    /// // Complete the write and get the result
+    /// var affectedRows = await writer.CompleteAsync();
+    /// </code>
+    /// </example>
+    public IBulkWriter CreateBulkWriter()
+    {
+        ThrowIfDisposed();
+
+        return new BulkWriter(
+            _flightClient.Value,
+            _options.Database,
+            _options.Authentication,
+            _logger as ILogger<BulkWriter>);
+    }
+
+    /// <summary>
+    /// Writes a single table to GreptimeDB using Arrow Flight bulk write.
+    /// This is a convenience method that creates a BulkWriter, writes the table,
+    /// and completes the operation in a single call.
+    /// </summary>
+    /// <param name="table">The table to write.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The number of affected rows.</returns>
+    public async Task<uint> BulkWriteAsync(Table.Table table, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+
+        await using var writer = CreateBulkWriter();
+        await writer.WriteAsync(table, cancellationToken).ConfigureAwait(false);
+        return await writer.CompleteAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Checks the health of the GreptimeDB server.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -177,6 +260,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         }
 
         _disposed = true;
+        await DisposeFlightClientAsync().ConfigureAwait(false);
         await _channel.ShutdownAsync().ConfigureAwait(false);
         LogClientClosed(_logger);
     }
@@ -196,6 +280,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         }
 
         _disposed = true;
+        DisposeFlightClient();
         _channel.Dispose();
         LogClientDisposed(_logger);
     }
@@ -220,6 +305,38 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         }
 
         return header;
+    }
+
+    private async ValueTask DisposeFlightClientAsync()
+    {
+        if (_flightClient.IsValueCreated)
+        {
+            switch (_flightClient.Value)
+            {
+                case IAsyncDisposable asyncDisposable:
+                    await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+                    break;
+                case IDisposable disposable:
+                    disposable.Dispose();
+                    break;
+            }
+        }
+    }
+
+    private void DisposeFlightClient()
+    {
+        if (_flightClient.IsValueCreated)
+        {
+            switch (_flightClient.Value)
+            {
+                case IDisposable disposable:
+                    disposable.Dispose();
+                    break;
+                case IAsyncDisposable asyncDisposable:
+                    asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    break;
+            }
+        }
     }
 
     private CallOptions CreateCallOptions(CancellationToken cancellationToken)
