@@ -12,7 +12,7 @@ namespace GreptimeDB.Ingester.IntegrationTests;
 /// NOTE: Arrow Flight DoPut requires tables to exist first. These tests
 /// create tables using regular gRPC (which auto-creates) before testing BulkWriter.
 /// </summary>
-public sealed class BulkWriterIntegrationTests : IAsyncLifetime, IDisposable
+public sealed class BulkWriterIntegrationTests : IAsyncLifetime
 {
     private readonly GreptimeClientOptions _options;
     private GreptimeClient? _client;
@@ -40,11 +40,6 @@ public sealed class BulkWriterIntegrationTests : IAsyncLifetime, IDisposable
         {
             await _client.DisposeAsync();
         }
-    }
-
-    public void Dispose()
-    {
-        _client?.Dispose();
     }
 
     /// <summary>

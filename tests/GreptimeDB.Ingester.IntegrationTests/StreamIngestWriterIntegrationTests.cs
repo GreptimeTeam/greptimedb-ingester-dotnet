@@ -10,7 +10,7 @@ namespace GreptimeDB.Ingester.IntegrationTests;
 /// Integration tests for StreamIngestWriter.
 /// Requires a running GreptimeDB instance.
 /// </summary>
-public sealed class StreamIngestWriterIntegrationTests : IAsyncLifetime, IDisposable
+public sealed class StreamIngestWriterIntegrationTests : IAsyncLifetime
 {
     private readonly GreptimeClientOptions _options;
     private GreptimeClient? _client;
@@ -38,11 +38,6 @@ public sealed class StreamIngestWriterIntegrationTests : IAsyncLifetime, IDispos
         {
             await _client.DisposeAsync();
         }
-    }
-
-    public void Dispose()
-    {
-        _client?.Dispose();
     }
 
     [Fact]

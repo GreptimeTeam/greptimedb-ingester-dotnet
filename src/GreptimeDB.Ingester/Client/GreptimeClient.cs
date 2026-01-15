@@ -260,6 +260,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         }
 
         _disposed = true;
+        DisposeFlightClient();
         await _channel.ShutdownAsync().ConfigureAwait(false);
         LogClientClosed(_logger);
     }
@@ -279,6 +280,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         }
 
         _disposed = true;
+        DisposeFlightClient();
         _channel.Dispose();
         LogClientDisposed(_logger);
     }
@@ -303,6 +305,14 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         }
 
         return header;
+    }
+
+    private void DisposeFlightClient()
+    {
+        if (_flightClient.IsValueCreated)
+        {
+            _flightClient.Value.Dispose();
+        }
     }
 
     private CallOptions CreateCallOptions(CancellationToken cancellationToken)
