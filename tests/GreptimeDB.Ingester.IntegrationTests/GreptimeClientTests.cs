@@ -10,18 +10,21 @@ namespace GreptimeDB.Ingester.IntegrationTests;
 /// Integration tests for GreptimeClient.
 /// Requires a running GreptimeDB instance.
 /// </summary>
+[Collection("GreptimeDB Integration")]
 public sealed class GreptimeClientTests : IAsyncLifetime, IDisposable
 {
+    private readonly GreptimeDbFixture _fixture;
     private readonly GreptimeClientOptions _options;
     private GreptimeClient? _client;
 
     private GreptimeClient Client => _client ?? throw new InvalidOperationException("Client not initialized");
 
-    public GreptimeClientTests()
+    public GreptimeClientTests(GreptimeDbFixture fixture)
     {
+        _fixture = fixture;
         _options = new GreptimeClientOptions
         {
-            Endpoint = Environment.GetEnvironmentVariable("GREPTIMEDB_ENDPOINT") ?? "http://localhost:4001",
+            Endpoint = _fixture.GetEndpoint(),
             Database = Environment.GetEnvironmentVariable("GREPTIMEDB_DATABASE") ?? "public"
         };
     }
