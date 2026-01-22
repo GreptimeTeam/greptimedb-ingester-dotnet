@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GreptimeDB.Ingester.Grpc/GreptimeDB.Ingester.Grpc.csproj" />
+    <Project Path="src/GreptimeDB.Ingester/GreptimeDB.Ingester.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GreptimeDB.Ingester.IntegrationTests/GreptimeDB.Ingester.IntegrationTests.csproj" />
+    <Project Path="tests/GreptimeDB.Ingester.Tests/GreptimeDB.Ingester.Tests.csproj" />
+  </Folder>
+</Solution>

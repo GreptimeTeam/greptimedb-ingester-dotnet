@@ -5,7 +5,7 @@ using Xunit;
 
 namespace GreptimeDB.Ingester.IntegrationTests;
 
-public class GreptimeDbFixture : IAsyncLifetime
+public sealed class GreptimeDbFixture : IAsyncLifetime
 {
     private readonly IContainer _container;
 
@@ -42,6 +42,5 @@ public class GreptimeDbFixture : IAsyncLifetime
     public async ValueTask DisposeAsync()
     {
         await _container.DisposeAsync();
-        GC.SuppressFinalize(this);
     }
 }
