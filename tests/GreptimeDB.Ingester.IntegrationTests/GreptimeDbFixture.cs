@@ -26,7 +26,7 @@ public sealed class GreptimeDbFixture : IAsyncLifetime
         }
         else
         {
-            _container = new ContainerBuilder(new DockerImage("greptime/greptimedb:v1.0.0-beta.4"))
+            _container = new ContainerBuilder(new DockerImage("greptime/greptimedb:latest"))
                 .WithCommand("standalone", "start", "--http-addr", "0.0.0.0:4000", "--rpc-bind-addr", "0.0.0.0:4001", "--mysql-addr", "0.0.0.0:4002", "--postgres-addr", "0.0.0.0:4003")
                 .WithPortBinding(HttpPort, true)
                 .WithPortBinding(GrpcPort, true)
