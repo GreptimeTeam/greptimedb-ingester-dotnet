@@ -10,18 +10,21 @@ namespace GreptimeDB.Ingester.IntegrationTests;
 /// Integration tests for StreamIngestWriter.
 /// Requires a running GreptimeDB instance.
 /// </summary>
+[Collection("GreptimeDB Integration")]
 public sealed class StreamIngestWriterIntegrationTests : IAsyncLifetime
 {
+    private readonly GreptimeDbFixture _fixture;
     private readonly GreptimeClientOptions _options;
     private GreptimeClient? _client;
 
     private GreptimeClient Client => _client ?? throw new InvalidOperationException("Client not initialized");
 
-    public StreamIngestWriterIntegrationTests()
+    public StreamIngestWriterIntegrationTests(GreptimeDbFixture fixture)
     {
+        _fixture = fixture;
         _options = new GreptimeClientOptions
         {
-            Endpoint = Environment.GetEnvironmentVariable("GREPTIMEDB_ENDPOINT") ?? "http://localhost:4001",
+            Endpoint = _fixture.GetEndpoint(),
             Database = Environment.GetEnvironmentVariable("GREPTIMEDB_DATABASE") ?? "public"
         };
     }

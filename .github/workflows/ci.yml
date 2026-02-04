@@ -31,7 +31,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: 10.0.x
 
       - name: Restore
         run: dotnet restore
@@ -57,10 +57,9 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
-            6.0.x
-            7.0.x
             8.0.x
             9.0.x
+            10.0.x
 
       - name: Restore
         run: dotnet restore
@@ -82,40 +81,13 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Start GreptimeDB
-        run: |
-          docker run -d \
-            -p 4000:4000 \
-            -p 4001:4001 \
-            -p 4002:4002 \
-            -p 4003:4003 \
-            --name greptimedb \
-            greptime/greptimedb:v1.0.0-beta.4 standalone start \
-            --http-addr 0.0.0.0:4000 \
-            --rpc-bind-addr 0.0.0.0:4001 \
-            --mysql-addr 0.0.0.0:4002 \
-            --postgres-addr 0.0.0.0:4003
-
-      - name: Wait for GreptimeDB
-        run: |
-          for i in {1..30}; do
-            if curl -sf http://localhost:4000/health; then
-              echo "GreptimeDB is ready"
-              exit 0
-            fi
-            echo "Waiting for GreptimeDB... ($i/30)"
-            sleep 2
-          done
-          echo "GreptimeDB failed to start"
-          docker logs greptimedb
-          exit 1
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
             8.0.x
             9.0.x
+            10.0.x
 
       - name: Restore
         run: dotnet restore
@@ -125,6 +97,3 @@ jobs:
 
       - name: Integration Tests
         run: dotnet test tests/GreptimeDB.Ingester.IntegrationTests --configuration Release --verbosity normal
-        env:
-          GREPTIMEDB_ENDPOINT: http://localhost:4001
-          GREPTIMEDB_DATABASE: public
