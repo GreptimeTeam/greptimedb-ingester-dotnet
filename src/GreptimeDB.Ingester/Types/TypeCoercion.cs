@@ -375,8 +375,8 @@ internal static class TypeCoercion
         {
             ColumnDataType.TimestampSecond => ticks / TimeSpan.TicksPerSecond,
             ColumnDataType.TimestampMillisecond => ticks / TimeSpan.TicksPerMillisecond,
-            ColumnDataType.TimestampMicrosecond or ColumnDataType.DateTime => ticks / (TimeSpan.TicksPerMillisecond / 1000),
-            ColumnDataType.TimestampNanosecond => ticks * 100, // 1 tick = 100 nanoseconds
+            ColumnDataType.TimestampMicrosecond or ColumnDataType.DateTime => ticks / 10, // 1 tick = 100ns = 0.1us
+            ColumnDataType.TimestampNanosecond => ticks * 100, // 1 tick = 100ns
             _ => throw new ArgumentOutOfRangeException(nameof(targetType), targetType, "Invalid timestamp type."),
         };
     }

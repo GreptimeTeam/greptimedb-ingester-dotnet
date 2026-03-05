@@ -25,8 +25,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<GreptimeClient>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<GreptimeClientOptions>>().Value;
-            var logger = sp.GetService<ILogger<GreptimeClient>>();
-            return new GreptimeClient(options, logger);
+            var loggerFactory = sp.GetService<ILoggerFactory>();
+            return new GreptimeClient(options, loggerFactory);
         });
 
         return services;
@@ -46,8 +46,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(Options.Create(options));
         services.TryAddSingleton<GreptimeClient>(sp =>
         {
-            var logger = sp.GetService<ILogger<GreptimeClient>>();
-            return new GreptimeClient(options, logger);
+            var loggerFactory = sp.GetService<ILoggerFactory>();
+            return new GreptimeClient(options, loggerFactory);
         });
 
         return services;

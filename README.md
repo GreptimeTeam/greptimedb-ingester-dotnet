@@ -49,6 +49,33 @@ var affectedRows = await client.WriteAsync(table);
 await client.DisposeAsync();
 ```
 
+## Client Options
+
+```csharp
+var client = new GreptimeClient(new GreptimeClientOptions
+{
+    Endpoint = "http://localhost:4001",
+    Database = "public",
+    ConnectTimeout = TimeSpan.FromSeconds(5),
+    WriteTimeout = TimeSpan.FromSeconds(30)
+});
+```
+
+With basic auth:
+
+```csharp
+var client = new GreptimeClient(new GreptimeClientOptions
+{
+    Endpoint = "http://localhost:4001",
+    Database = "public",
+    Authentication = new AuthenticationOptions
+    {
+        Username = "greptime_user",
+        Password = "greptime_password"
+    }
+});
+```
+
 ## Features
 
 - **Unary Write** - Simple single-request writes via gRPC
@@ -71,6 +98,16 @@ await writer.WriteAsync(table2);
 await writer.WriteAsync(table3);
 
 var affectedRows = await writer.CompleteAsync();
+```
+
+Custom stream options:
+
+```csharp
+await using var writer = client.CreateStreamIngestWriter(new StreamIngestWriterOptions
+{
+    BufferCapacity = 2000,
+    WriteTimeout = TimeSpan.FromSeconds(60)
+});
 ```
 
 ## Bulk Write (Arrow Flight)
@@ -96,6 +133,43 @@ var affectedRows = await writer.CompleteAsync();
 > **Note**: Unlike regular gRPC writes, Arrow Flight `DoPut` does not auto-create tables.
 > Ensure tables exist before using `BulkWriter`. A `BulkWriter` instance is bound to a single
 > table; create a new writer per table when bulk writing multiple tables.
+
+## Delete Data
+
+```csharp
+var deleteTable = new TableBuilder("cpu_metrics")
+    .AddTag("host", ColumnDataType.String)
+    .AddTimestamp("ts", ColumnDataType.TimestampMillisecond)
+    .AddRow("server1", DateTime.UtcNow)
+    .Build();
+
+var affectedRows = await client.DeleteAsync(deleteTable);
+```
+
+## Health Check
+
+```csharp
+var healthy = await client.HealthCheckAsync();
+```
+
+## Error Handling
+
+```csharp
+try
+{
+    await client.WriteAsync(table);
+}
+catch (GreptimeDB.Ingester.Exceptions.GreptimeException ex)
+{
+    Console.Error.WriteLine(ex.Message);
+}
+```
+
+## Type Notes
+
+- `DateTime` maps to microsecond timestamp semantics.
+- `Timestamp*` types preserve explicit precision (`Second`, `Millisecond`, `Microsecond`, `Nanosecond`).
+- `Json` is sent as JSON string content.
 
 ## DI Integration
 

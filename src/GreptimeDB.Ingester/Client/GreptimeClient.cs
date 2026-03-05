@@ -15,7 +15,8 @@ namespace GreptimeDB.Ingester.Client;
 public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
 {
     private readonly GreptimeClientOptions _options;
-    private readonly ILogger<GreptimeClient> _logger;
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly ILogger _logger;
     private readonly GrpcChannel _channel;
     private readonly GreptimeDatabase.GreptimeDatabaseClient _client;
     private readonly HealthCheck.HealthCheckClient _healthClient;
@@ -26,12 +27,13 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
     /// Creates a new GreptimeClient with the specified options.
     /// </summary>
     /// <param name="options">Client configuration options.</param>
-    /// <param name="logger">Optional logger.</param>
-    public GreptimeClient(GreptimeClientOptions options, ILogger<GreptimeClient>? logger = null)
+    /// <param name="loggerFactory">Optional logger factory for creating category-specific loggers.</param>
+    public GreptimeClient(GreptimeClientOptions options, ILoggerFactory? loggerFactory = null)
     {
         options.Validate();
         _options = options;
-        _logger = logger ?? NullLogger<GreptimeClient>.Instance;
+        _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+        _logger = _loggerFactory.CreateLogger<GreptimeClient>();
 
         var channelOptions = new GrpcChannelOptions();
 
@@ -175,7 +177,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
             _client,
             options,
             BuildRequestHeader,
-            _logger);
+            _loggerFactory.CreateLogger<StreamIngestWriter>());
     }
 
     /// <summary>
@@ -203,7 +205,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
             _flightClient.Value,
             _options.Database,
             _options.Authentication,
-            _logger);
+            _loggerFactory.CreateLogger<BulkWriter>());
     }
 
     /// <summary>
