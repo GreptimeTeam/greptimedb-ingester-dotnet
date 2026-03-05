@@ -45,6 +45,10 @@ msbuild.err
 .DS_Store
 Thumbs.db
 
+# Examples (generated project files from dotnet run file.cs)
+examples/*.csproj
+examples/*.fsproj
+
 # Misc
 *.tmp
 *.temp

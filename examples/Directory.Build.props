@@ -1,0 +1,3 @@
+<Project>
+  <!-- Override parent Directory.Build.props to isolate file-based apps -->
+</Project>

@@ -1,0 +1,3 @@
+<Project>
+  <!-- Override parent Directory.Packages.props to disable Central Package Management -->
+</Project>

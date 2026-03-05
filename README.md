@@ -181,6 +181,10 @@ services.AddGreptimeClient(options =>
 });
 ```
 
+## Examples
+
+See the [examples](examples/) directory for runnable scripts including a quick-start test and a performance benchmark. Requires .NET 10 SDK.
+
 ## License
 
 Apache License 2.0
