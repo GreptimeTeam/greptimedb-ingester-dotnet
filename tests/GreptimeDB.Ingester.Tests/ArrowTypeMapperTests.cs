@@ -82,12 +82,12 @@ public class ArrowTypeMapperTests
     }
 
     [Fact]
-    public void ToArrowType_DateTime_ReturnsTimestampMillisecond()
+    public void ToArrowType_DateTime_ReturnsTimestampMicrosecond()
     {
         var result = ArrowTypeMapper.ToArrowType(ColumnDataType.DateTime);
         result.Should().BeOfType<TimestampType>();
         var timestampType = (TimestampType)result;
-        timestampType.Unit.Should().Be(TimeUnit.Millisecond);
+        timestampType.Unit.Should().Be(TimeUnit.Microsecond);
     }
 
     [Theory]
@@ -143,7 +143,7 @@ public class ArrowTypeMapperTests
     [InlineData(ColumnDataType.TimestampMillisecond, TimeUnit.Millisecond)]
     [InlineData(ColumnDataType.TimestampMicrosecond, TimeUnit.Microsecond)]
     [InlineData(ColumnDataType.TimestampNanosecond, TimeUnit.Nanosecond)]
-    [InlineData(ColumnDataType.DateTime, TimeUnit.Millisecond)]
+    [InlineData(ColumnDataType.DateTime, TimeUnit.Microsecond)]
     public void GetTimestampUnit_ValidTimestampTypes_ReturnsCorrectUnit(ColumnDataType dataType, TimeUnit expectedUnit)
     {
         var result = ArrowTypeMapper.GetTimestampUnit(dataType);

@@ -164,6 +164,16 @@ public class TypeCoercionTests
     }
 
     [Fact]
+    public void Coerce_DateTime_FromDateTime_UsesMicrosecondPrecision()
+    {
+        var dt = new DateTime(2024, 1, 15, 12, 0, 0, DateTimeKind.Utc).AddTicks(1230); // +123us
+        var result = TypeCoercion.Coerce(dt, ColumnDataType.DateTime, TestColumn);
+
+        var expected = (dt - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).Ticks / 10;
+        result.Should().Be(expected);
+    }
+
+    [Fact]
     public void Coerce_TimestampMillisecond_FromLong_PassesThrough()
     {
         var timestamp = 1705320000000L;

@@ -17,7 +17,7 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
     private readonly GreptimeDatabase.GreptimeDatabaseClient _client;
     private readonly StreamIngestWriterOptions _options;
     private readonly Func<RequestHeader> _headerFactory;
-    private readonly ILogger<StreamIngestWriter> _logger;
+    private readonly ILogger _logger;
 
     private readonly Channel<GreptimeRequest> _channel;
     private readonly Task<uint> _sendTask;
@@ -33,14 +33,14 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
         GreptimeDatabase.GreptimeDatabaseClient client,
         StreamIngestWriterOptions options,
         Func<RequestHeader> headerFactory,
-        ILogger<StreamIngestWriter>? logger = null)
+        ILogger? logger = null)
     {
         options.Validate();
 
         _client = client;
         _options = options;
         _headerFactory = headerFactory;
-        _logger = logger ?? NullLogger<StreamIngestWriter>.Instance;
+        _logger = logger ?? NullLogger.Instance;
         _cts = new CancellationTokenSource();
 
         var channelOptions = new BoundedChannelOptions(options.BufferCapacity)

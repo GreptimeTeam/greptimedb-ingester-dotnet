@@ -18,7 +18,7 @@ public sealed partial class BulkWriter : IBulkWriter
     private readonly FlightClient _flightClient;
     private readonly string _database;
     private readonly AuthenticationOptions? _auth;
-    private readonly ILogger<BulkWriter> _logger;
+    private readonly ILogger _logger;
     private readonly RecordBatchBuilder _recordBatchBuilder;
 
     private FlightRecordBatchDuplexStreamingCall? _putCall;
@@ -34,12 +34,12 @@ public sealed partial class BulkWriter : IBulkWriter
         FlightClient flightClient,
         string database,
         AuthenticationOptions? auth,
-        ILogger<BulkWriter>? logger = null)
+        ILogger? logger = null)
     {
         _flightClient = flightClient;
         _database = database;
         _auth = auth;
-        _logger = logger ?? NullLogger<BulkWriter>.Instance;
+        _logger = logger ?? NullLogger.Instance;
         _recordBatchBuilder = new RecordBatchBuilder();
 
         LogBulkWriterCreated(_logger);

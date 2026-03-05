@@ -76,7 +76,7 @@ public enum ColumnDataType
     TimeNanosecond = 22,
 
     /// <summary>JSON data stored as string.</summary>
-    Json = 27,
+    Json = 31,
 }
 
 /// <summary>

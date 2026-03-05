@@ -70,10 +70,34 @@ jobs:
       - name: Unit Tests
         run: dotnet test tests/GreptimeDB.Ingester.Tests --no-build --configuration Release --verbosity normal
 
+  compatibility-net6-net7:
+    name: Compatibility (net6/net7)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build net6.0
+        run: dotnet build src/GreptimeDB.Ingester/GreptimeDB.Ingester.csproj --no-restore --configuration Release -f net6.0
+
+      - name: Build net7.0
+        run: dotnet build src/GreptimeDB.Ingester/GreptimeDB.Ingester.csproj --no-restore --configuration Release -f net7.0
+
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, compatibility-net6-net7]
 
     steps:
       - name: Checkout
