@@ -1,14 +1,16 @@
 #:package GreptimeDB.Ingester@0.1.0
+#:package MySqlConnector@2.4.0
 
 using System.Diagnostics;
 using GreptimeDB.Ingester.Client;
 using GreptimeDB.Ingester.Table;
 using GreptimeDB.Ingester.Types;
+using MySqlConnector;
 
 // --- Configuration ---
 int[] batchSizes = [100, 500, 1000, 5000];
 int[] concurrencyLevels = [1, 2, 4, 8];
-int totalRowsPerTask = 10_000;
+int totalRowsPerTask = 100_000;
 string endpoint = "http://localhost:4001";
 string database = "public";
 
@@ -33,11 +35,16 @@ if (!await client.HealthCheckAsync())
     Console.Error.WriteLine("ERROR: Cannot connect to GreptimeDB at " + endpoint);
     return;
 }
-Console.WriteLine("Connected to GreptimeDB.\n");
+Console.WriteLine("Connected to GreptimeDB.");
+
+// MySQL connection for truncating tables between runs
+var mysqlConn = new MySqlConnection("Server=127.0.0.1;Port=4002;Database=public;");
+await mysqlConn.OpenAsync();
+Console.WriteLine("MySQL connection ready.\n");
 
 // --- Warmup ---
 Console.Write("Warming up...");
-var warmup = BuildTable("bench_warmup", 100);
+var warmup = BuildTable("bench_warmup", 100, 0);
 await client.WriteAsync(warmup);
 Console.WriteLine(" done.\n");
 
@@ -51,7 +58,7 @@ foreach (var concurrency in concurrencyLevels)
     foreach (var batchSize in batchSizes)
     {
         var result = await RunBenchmark(
-            concurrency, batchSize, totalRowsPerTask,
+            mysqlConn, concurrency, batchSize, totalRowsPerTask,
             async (tbl) => { await client.WriteAsync(tbl); },
             "bench_grpc");
         PrintRow(concurrency, batchSize, result);
@@ -70,7 +77,7 @@ foreach (var concurrency in concurrencyLevels)
     foreach (var batchSize in batchSizes)
     {
         var result = await RunBenchmark(
-            concurrency, batchSize, totalRowsPerTask,
+            mysqlConn, concurrency, batchSize, totalRowsPerTask,
             async (tbl) =>
             {
                 await using var writer = client.CreateStreamIngestWriter();
@@ -94,8 +101,10 @@ foreach (var concurrency in concurrencyLevels)
 {
     foreach (var batchSize in batchSizes)
     {
-        var seed = BuildTable($"bench_arrow_c{concurrency}_b{batchSize}", 1);
+        var tableName = $"bench_arrow_c{concurrency}_b{batchSize}";
+        var seed = BuildTable(tableName, 1, 0);
         await client.WriteAsync(seed);
+        await TruncateTable(mysqlConn, tableName);
     }
 }
 Console.WriteLine(" done.\n");
@@ -107,13 +116,14 @@ foreach (var concurrency in concurrencyLevels)
     foreach (var batchSize in batchSizes)
     {
         var result = await RunBenchmark(
-            concurrency, batchSize, totalRowsPerTask,
+            mysqlConn, concurrency, batchSize, totalRowsPerTask,
             async (tbl) => { await client.BulkWriteAsync(tbl); },
             "bench_arrow");
         PrintRow(concurrency, batchSize, result);
     }
 }
 
+await mysqlConn.DisposeAsync();
 await client.DisposeAsync();
 
 Console.WriteLine("\nBenchmark complete.");
@@ -121,22 +131,28 @@ Console.WriteLine("\nBenchmark complete.");
 // --- Helpers ---
 
 async Task<BenchResult> RunBenchmark(
-    int concurrency, int batchSize, int rowsPerTask,
+    MySqlConnection mysqlConn, int concurrency, int batchSize, int rowsPerTask,
     Func<Table, Task> writeFunc, string tablePrefix)
 {
     int batchesPerTask = rowsPerTask / batchSize;
     if (batchesPerTask == 0) batchesPerTask = 1;
     int actualRowsPerTask = batchesPerTask * batchSize;
     long totalRows = (long)actualRowsPerTask * concurrency;
+    string tableName = $"{tablePrefix}_c{concurrency}_b{batchSize}";
 
-    // Pre-build all tables to exclude build time from measurement
+    // Truncate table to get clean row counts across runs
+    await TruncateTable(mysqlConn, tableName);
+
+    // Pre-build all tables to exclude build time from measurement.
+    // Each task gets a unique rowOffset so timestamps never collide across tasks.
     var tables = new Table[concurrency][];
     for (int t = 0; t < concurrency; t++)
     {
         tables[t] = new Table[batchesPerTask];
         for (int b = 0; b < batchesPerTask; b++)
         {
-            tables[t][b] = BuildTable($"{tablePrefix}_c{concurrency}_b{batchSize}", batchSize);
+            long rowOffset = (long)t * actualRowsPerTask + (long)b * batchSize;
+            tables[t][b] = BuildTable(tableName, batchSize, rowOffset);
         }
     }
 
@@ -176,7 +192,7 @@ async Task<BenchResult> RunBenchmark(
     return new BenchResult(totalRows, elapsedSec, rowsPerSec, null);
 }
 
-Table BuildTable(string name, int rows)
+Table BuildTable(string name, int rows, long rowOffset)
 {
     var builder = new TableBuilder(name)
         .AddTag("host", ColumnDataType.String)
@@ -193,6 +209,9 @@ Table BuildTable(string name, int rows)
     string[] hosts = ["web-01", "web-02", "web-03", "db-01", "db-02", "cache-01", "cache-02", "lb-01"];
     string[] regions = ["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"];
 
+    // Use a fixed base time with sequential millisecond offsets to guarantee unique timestamps.
+    var baseTime = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
     for (int i = 0; i < rows; i++)
     {
         builder.AddRow(
@@ -204,10 +223,23 @@ Table BuildTable(string name, int rows)
             Math.Round(random.NextDouble() * 1000, 2),
             Math.Round(random.NextDouble() * 800, 2),
             random.Next(0, 5000),
-            DateTime.UtcNow.AddMilliseconds(-random.Next(0, 3_600_000)));
+            baseTime.AddMilliseconds(rowOffset + i));
     }
 
     return builder.Build();
+}
+
+async Task TruncateTable(MySqlConnection conn, string tableName)
+{
+    try
+    {
+        await using var cmd = new MySqlCommand($"TRUNCATE TABLE `{tableName}`", conn);
+        await cmd.ExecuteNonQueryAsync();
+    }
+    catch
+    {
+        // Table may not exist yet, ignore.
+    }
 }
 
 void PrintHeader()
