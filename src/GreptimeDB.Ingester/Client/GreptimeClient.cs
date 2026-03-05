@@ -175,7 +175,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
             _client,
             options,
             BuildRequestHeader,
-            _logger as ILogger<StreamIngestWriter>);
+            _logger);
     }
 
     /// <summary>
@@ -203,7 +203,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
             _flightClient.Value,
             _options.Database,
             _options.Authentication,
-            _logger as ILogger<BulkWriter>);
+            _logger);
     }
 
     /// <summary>

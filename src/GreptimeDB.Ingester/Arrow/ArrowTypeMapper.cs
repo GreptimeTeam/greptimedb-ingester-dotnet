@@ -45,7 +45,7 @@ internal static class ArrowTypeMapper
 
             // Date and DateTime
             ColumnDataType.Date => Date32Type.Default,
-            ColumnDataType.DateTime => new TimestampType(TimeUnit.Millisecond, (string?)null),
+            ColumnDataType.DateTime => new TimestampType(TimeUnit.Microsecond, (string?)null),
 
             // Timestamps with different precisions
             ColumnDataType.TimestampSecond => new TimestampType(TimeUnit.Second, (string?)null),
@@ -77,7 +77,7 @@ internal static class ArrowTypeMapper
             ColumnDataType.TimestampMillisecond => TimeUnit.Millisecond,
             ColumnDataType.TimestampMicrosecond => TimeUnit.Microsecond,
             ColumnDataType.TimestampNanosecond => TimeUnit.Nanosecond,
-            ColumnDataType.DateTime => TimeUnit.Millisecond,
+            ColumnDataType.DateTime => TimeUnit.Microsecond,
             _ => throw new ArgumentException($"Data type {dataType} is not a timestamp type", nameof(dataType))
         };
     }

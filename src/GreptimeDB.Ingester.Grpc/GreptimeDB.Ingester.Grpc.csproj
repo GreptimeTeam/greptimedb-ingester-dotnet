@@ -25,4 +25,8 @@
     <Protobuf Include="..\..\proto\proto\greptime\v1\health.proto" GrpcServices="Client" ProtoRoot="..\..\proto\proto" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
 </Project>

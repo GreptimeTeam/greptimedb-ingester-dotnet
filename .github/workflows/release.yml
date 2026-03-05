@@ -1,0 +1,48 @@
+name: Release to NuGet
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  release:
+    name: Pack & Publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release /p:Version=${{ steps.version.outputs.VERSION }}
+
+      - name: Unit Tests
+        run: dotnet test tests/GreptimeDB.Ingester.Tests --no-build --configuration Release --verbosity normal
+
+      - name: Pack
+        run: dotnet pack --no-build --configuration Release /p:Version=${{ steps.version.outputs.VERSION }} --output ./nupkgs
+
+      - name: Push to NuGet
+        run: dotnet nuget push ./nupkgs/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate

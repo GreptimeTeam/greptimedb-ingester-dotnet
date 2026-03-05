@@ -75,7 +75,7 @@ internal sealed class RecordBatchBuilder : IDisposable
             ColumnDataType.Date => BuildDate32Array(table, columnIndex),
 
             // Timestamps
-            ColumnDataType.DateTime => BuildTimestampArray(table, columnIndex, TimeUnit.Millisecond),
+            ColumnDataType.DateTime => BuildTimestampArray(table, columnIndex, TimeUnit.Microsecond),
             ColumnDataType.TimestampSecond => BuildTimestampArray(table, columnIndex, TimeUnit.Second),
             ColumnDataType.TimestampMillisecond => BuildTimestampArray(table, columnIndex, TimeUnit.Millisecond),
             ColumnDataType.TimestampMicrosecond => BuildTimestampArray(table, columnIndex, TimeUnit.Microsecond),

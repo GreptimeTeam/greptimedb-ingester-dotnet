@@ -317,6 +317,28 @@ public class RecordBatchBuilderTests : IDisposable
     }
 
     [Fact]
+    public void Build_DateTimeColumn_UsesMicrosecondUnit()
+    {
+        var value = new DateTime(2024, 1, 15, 10, 30, 0, DateTimeKind.Utc).AddTicks(450); // +45us
+
+        var table = new TableBuilder("test_table")
+            .AddField("dt", ColumnDataType.DateTime)
+            .AddTimestamp("ts", ColumnDataType.TimestampMillisecond)
+            .AddRow(value, DateTime.UtcNow)
+            .Build();
+
+        using var batch = _builder.Build(table);
+
+        var dtArray = (TimestampArray)batch.Column(0);
+        dtArray.Data.DataType.Should().BeOfType<TimestampType>();
+        ((TimestampType)dtArray.Data.DataType).Unit.Should().Be(TimeUnit.Microsecond);
+
+        var result = dtArray.GetTimestamp(0);
+        result.Should().NotBeNull();
+        result!.Value.UtcDateTime.Should().BeCloseTo(value, TimeSpan.FromMicroseconds(1));
+    }
+
+    [Fact]
     public void Build_TimestampNanosecond_CorrectConversion()
     {
         var timestamp = new DateTime(2024, 1, 15, 10, 30, 0, DateTimeKind.Utc);
