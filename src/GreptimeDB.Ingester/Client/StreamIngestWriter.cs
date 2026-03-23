@@ -150,9 +150,9 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
         {
             await _sendTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore exceptions during disposal
+            LogStreamError(_logger, ex.Message);
         }
 
         _cts.Dispose();
