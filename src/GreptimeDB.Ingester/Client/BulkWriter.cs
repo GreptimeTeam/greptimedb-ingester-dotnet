@@ -56,14 +56,15 @@ public sealed partial class BulkWriter : IBulkWriter
         ThrowIfDisposed();
         ThrowIfCompleted();
 
-        if (_recvError != null)
+        var recvError = _recvError;
+        if (recvError != null)
         {
-            if (_recvError is GreptimeException)
+            if (recvError is GreptimeException greptimeEx)
             {
-                throw _recvError;
+                throw greptimeEx;
             }
 
-            throw new GreptimeException($"Stream already failed: {_recvError.Message}", _recvError);
+            throw new GreptimeException($"Stream already failed: {recvError.Message}", recvError);
         }
 
         using var recordBatch = _recordBatchBuilder.Build(table);
@@ -117,14 +118,15 @@ public sealed partial class BulkWriter : IBulkWriter
                 await _recvTask.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
             }
 
-            if (_recvError != null)
+            var error = _recvError;
+            if (error != null)
             {
-                if (_recvError is GreptimeException)
+                if (error is GreptimeException greptimeEx)
                 {
-                    throw _recvError;
+                    throw greptimeEx;
                 }
 
-                throw new GreptimeException($"Bulk write failed: {_recvError.Message}", _recvError);
+                throw new GreptimeException($"Bulk write failed: {error.Message}", error);
             }
 
             LogBulkWriteCompleted(_logger, _serverAffectedRows);
@@ -136,6 +138,7 @@ public sealed partial class BulkWriter : IBulkWriter
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
+            _cts.Cancel();
             throw new TimeoutException(
                 $"Bulk write operation timed out after {_writeTimeout.TotalSeconds} seconds.");
         }
@@ -245,15 +248,15 @@ public sealed partial class BulkWriter : IBulkWriter
         }
         catch (OperationCanceledException ex)
         {
-            error ??= ex;
+            error = ex;
         }
         catch (RpcException ex)
         {
-            error ??= ex;
+            error = ex;
         }
         catch (ObjectDisposedException ex)
         {
-            error ??= ex;
+            error = ex;
         }
 
         return (affectedRows, error);

@@ -1,7 +1,6 @@
 using Apache.Arrow.Flight;
 using FluentAssertions;
 using GreptimeDB.Ingester.Client;
-using GreptimeDB.Ingester.Exceptions;
 using Grpc.Core;
 using Moq;
 using Xunit;
