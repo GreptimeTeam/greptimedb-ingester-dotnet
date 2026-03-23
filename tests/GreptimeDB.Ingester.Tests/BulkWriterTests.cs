@@ -1,7 +1,7 @@
 using Apache.Arrow.Flight;
 using FluentAssertions;
-using Google.Protobuf;
 using GreptimeDB.Ingester.Client;
+using GreptimeDB.Ingester.Exceptions;
 using Grpc.Core;
 using Moq;
 using Xunit;
@@ -21,12 +21,11 @@ public class BulkWriterTests
         };
 
         var mockStream = CreateMockStream(responses);
-        var writer = CreateWriter();
 
-        await writer.DrainResponsesAsync(mockStream.Object);
+        var (affectedRows, error) = await BulkWriter.DrainResponsesAsync(mockStream.Object);
 
-        var rows = GetServerAffectedRows(writer);
-        rows.Should().Be(40);
+        affectedRows.Should().Be(40);
+        error.Should().BeNull();
     }
 
     [Fact]
@@ -36,17 +35,10 @@ public class BulkWriterTests
         mockStream.Setup(s => s.MoveNext(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new RpcException(new Status(StatusCode.Internal, "server error")));
 
-        var writer = CreateWriter();
+        var (affectedRows, error) = await BulkWriter.DrainResponsesAsync(mockStream.Object);
 
-        await writer.DrainResponsesAsync(mockStream.Object);
-
-        var error = GetRecvError(writer);
+        affectedRows.Should().Be(0);
         error.Should().BeOfType<RpcException>();
-    }
-
-    private static BulkWriter CreateWriter()
-    {
-        return new BulkWriter(null!, "test-db", null);
     }
 
     private static Mock<IAsyncStreamReader<FlightPutResult>> CreateMockStream(FlightPutResult[] responses)
@@ -65,19 +57,5 @@ public class BulkWriterTests
             .Returns(() => responses[index]);
 
         return mock;
-    }
-
-    private static uint GetServerAffectedRows(BulkWriter writer)
-    {
-        var field = typeof(BulkWriter).GetField("_serverAffectedRows",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        return (uint)field!.GetValue(writer)!;
-    }
-
-    private static Exception? GetRecvError(BulkWriter writer)
-    {
-        var field = typeof(BulkWriter).GetField("_recvError",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        return (Exception?)field!.GetValue(writer);
     }
 }

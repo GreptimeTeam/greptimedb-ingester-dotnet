@@ -28,6 +28,7 @@ public sealed partial class BulkWriter : IBulkWriter
     private Task? _recvTask;
     private uint _serverAffectedRows;
     private volatile Exception? _recvError;
+    private readonly CancellationTokenSource _cts = new();
     private int _completed;
     private int _disposed;
 
@@ -54,6 +55,11 @@ public sealed partial class BulkWriter : IBulkWriter
 
         if (_recvError != null)
         {
+            if (_recvError is GreptimeException)
+            {
+                throw _recvError;
+            }
+
             throw new GreptimeException($"Stream already failed: {_recvError.Message}", _recvError);
         }
 
@@ -102,11 +108,16 @@ public sealed partial class BulkWriter : IBulkWriter
 
             if (_recvTask != null)
             {
-                await _recvTask.ConfigureAwait(false);
+                await _recvTask.WaitAsync(cancellationToken).ConfigureAwait(false);
             }
 
             if (_recvError != null)
             {
+                if (_recvError is GreptimeException)
+                {
+                    throw _recvError;
+                }
+
                 throw new GreptimeException($"Bulk write failed: {_recvError.Message}", _recvError);
             }
 
@@ -132,6 +143,12 @@ public sealed partial class BulkWriter : IBulkWriter
             return;
         }
 
+#if NET8_0_OR_GREATER
+        await _cts.CancelAsync().ConfigureAwait(false);
+#else
+        _cts.Cancel();
+#endif
+
         _putCall?.Dispose();
         _recordBatchBuilder.Dispose();
 
@@ -141,11 +158,13 @@ public sealed partial class BulkWriter : IBulkWriter
             {
                 await _recvTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore exceptions during disposal
+                LogBulkWriteError(_logger, ex.Message);
             }
         }
+
+        _cts.Dispose();
 
         LogBulkWriterDisposed(_logger);
     }
@@ -169,16 +188,28 @@ public sealed partial class BulkWriter : IBulkWriter
         _putCall = await _flightClient.StartPut(descriptor, schema, headers, deadline: null, cancellationToken)
             .ConfigureAwait(false);
 
-        _recvTask = DrainResponsesAsync(_putCall.ResponseStream);
+        _recvTask = RunRecvLoopAsync(_putCall.ResponseStream);
 
         LogStreamInitialized(_logger, tableName);
     }
 
-    internal async Task DrainResponsesAsync(IAsyncStreamReader<FlightPutResult> responseStream)
+    private async Task RunRecvLoopAsync(IAsyncStreamReader<FlightPutResult> responseStream)
     {
+        var (affectedRows, error) = await DrainResponsesAsync(responseStream, _cts.Token).ConfigureAwait(false);
+        _serverAffectedRows = affectedRows;
+        _recvError = error;
+    }
+
+    internal static async Task<(uint AffectedRows, Exception? Error)> DrainResponsesAsync(
+        IAsyncStreamReader<FlightPutResult> responseStream,
+        CancellationToken cancellationToken = default)
+    {
+        uint affectedRows = 0;
+        Exception? error = null;
+
         try
         {
-            while (await responseStream.MoveNext(CancellationToken.None).ConfigureAwait(false))
+            while (await responseStream.MoveNext(cancellationToken).ConfigureAwait(false))
             {
                 var result = responseStream.Current;
                 if (result.ApplicationMetadata == null || result.ApplicationMetadata.IsEmpty)
@@ -191,24 +222,30 @@ public sealed partial class BulkWriter : IBulkWriter
                     var resp = JsonSerializer.Deserialize<DoPutResponse>(result.ApplicationMetadata.Span);
                     if (resp != null)
                     {
-                        _serverAffectedRows += resp.AffectedRows;
+                        affectedRows += resp.AffectedRows;
                     }
                 }
                 catch (JsonException ex)
                 {
-                    _recvError ??= new GreptimeException(
+                    error ??= new GreptimeException(
                         $"Failed to deserialize PutResult metadata: {ex.Message}", ex);
                 }
             }
         }
+        catch (OperationCanceledException ex)
+        {
+            error ??= ex;
+        }
         catch (RpcException ex)
         {
-            _recvError ??= ex;
+            error ??= ex;
         }
-        catch (ObjectDisposedException)
+        catch (ObjectDisposedException ex)
         {
-            // Stream disposed during shutdown, expected
+            error ??= ex;
         }
+
+        return (affectedRows, error);
     }
 
     private void ThrowIfDisposed()
