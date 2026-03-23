@@ -1,4 +1,6 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Apache.Arrow;
 using Apache.Arrow.Flight;
 using Apache.Arrow.Flight.Client;
@@ -23,13 +25,12 @@ public sealed partial class BulkWriter : IBulkWriter
 
     private FlightRecordBatchDuplexStreamingCall? _putCall;
     private string? _currentTableName;
-    private uint _totalRowsWritten;
+    private Task? _recvTask;
+    private uint _serverAffectedRows;
+    private volatile Exception? _recvError;
     private int _completed;
     private int _disposed;
 
-    /// <summary>
-    /// Creates a new BulkWriter.
-    /// </summary>
     internal BulkWriter(
         FlightClient flightClient,
         string database,
@@ -51,10 +52,13 @@ public sealed partial class BulkWriter : IBulkWriter
         ThrowIfDisposed();
         ThrowIfCompleted();
 
-        // Build the RecordBatch from the table
+        if (_recvError != null)
+        {
+            throw new GreptimeException($"Stream already failed: {_recvError.Message}", _recvError);
+        }
+
         using var recordBatch = _recordBatchBuilder.Build(table);
 
-        // Initialize the stream on first write
         if (_putCall == null)
         {
             await InitializeStreamAsync(table.Name, recordBatch.Schema, cancellationToken)
@@ -69,13 +73,8 @@ public sealed partial class BulkWriter : IBulkWriter
                 "Create a new BulkWriter for each table.");
         }
 
-        // Write the record batch. Note: gRPC/Arrow Flight do not support cancelling an individual
-        // write once it has started; we only honor cancellation before beginning the write.
         cancellationToken.ThrowIfCancellationRequested();
         await _putCall!.RequestStream.WriteAsync(recordBatch).ConfigureAwait(false);
-
-        // Track rows written (like Go ingester does)
-        _totalRowsWritten += (uint)table.RowCount;
 
         LogRecordBatchWritten(_logger, table.Name, table.RowCount);
     }
@@ -92,7 +91,6 @@ public sealed partial class BulkWriter : IBulkWriter
 
         if (_putCall == null)
         {
-            // No data was written
             return 0;
         }
 
@@ -100,18 +98,24 @@ public sealed partial class BulkWriter : IBulkWriter
 
         try
         {
-            // Complete the request stream
             await _putCall.RequestStream.CompleteAsync().ConfigureAwait(false);
 
-            // Read and consume the response stream (required to complete the RPC)
-            while (await _putCall.ResponseStream.MoveNext(cancellationToken).ConfigureAwait(false))
+            if (_recvTask != null)
             {
-                // GreptimeDB doesn't return meaningful affected rows count in Arrow Flight response.
-                // Like the Go ingester, we return the count of rows we sent.
+                await _recvTask.ConfigureAwait(false);
             }
 
-            LogBulkWriteCompleted(_logger, _totalRowsWritten);
-            return _totalRowsWritten;
+            if (_recvError != null)
+            {
+                throw new GreptimeException($"Bulk write failed: {_recvError.Message}", _recvError);
+            }
+
+            LogBulkWriteCompleted(_logger, _serverAffectedRows);
+            return _serverAffectedRows;
+        }
+        catch (GreptimeException)
+        {
+            throw;
         }
         catch (RpcException ex)
         {
@@ -131,9 +135,19 @@ public sealed partial class BulkWriter : IBulkWriter
         _putCall?.Dispose();
         _recordBatchBuilder.Dispose();
 
-        LogBulkWriterDisposed(_logger);
+        if (_recvTask != null)
+        {
+            try
+            {
+                await _recvTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Ignore exceptions during disposal
+            }
+        }
 
-        await ValueTask.CompletedTask;
+        LogBulkWriterDisposed(_logger);
     }
 
     private async Task InitializeStreamAsync(
@@ -141,10 +155,8 @@ public sealed partial class BulkWriter : IBulkWriter
         Schema schema,
         CancellationToken cancellationToken)
     {
-        // Create the FlightDescriptor with the table name
         var descriptor = FlightDescriptor.CreatePathDescriptor(tableName);
 
-        // Build headers for authentication
         var headers = new Metadata();
         if (_auth?.IsConfigured == true)
         {
@@ -154,11 +166,49 @@ public sealed partial class BulkWriter : IBulkWriter
         }
         headers.Add("x-greptime-db-name", _database);
 
-        // Start the DoPut call with schema
         _putCall = await _flightClient.StartPut(descriptor, schema, headers, deadline: null, cancellationToken)
             .ConfigureAwait(false);
 
+        _recvTask = DrainResponsesAsync(_putCall.ResponseStream);
+
         LogStreamInitialized(_logger, tableName);
+    }
+
+    internal async Task DrainResponsesAsync(IAsyncStreamReader<FlightPutResult> responseStream)
+    {
+        try
+        {
+            while (await responseStream.MoveNext(CancellationToken.None).ConfigureAwait(false))
+            {
+                var result = responseStream.Current;
+                if (result.ApplicationMetadata == null || result.ApplicationMetadata.IsEmpty)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var resp = JsonSerializer.Deserialize<DoPutResponse>(result.ApplicationMetadata.Span);
+                    if (resp != null)
+                    {
+                        _serverAffectedRows += resp.AffectedRows;
+                    }
+                }
+                catch (JsonException ex)
+                {
+                    _recvError ??= new GreptimeException(
+                        $"Failed to deserialize PutResult metadata: {ex.Message}", ex);
+                }
+            }
+        }
+        catch (RpcException ex)
+        {
+            _recvError ??= ex;
+        }
+        catch (ObjectDisposedException)
+        {
+            // Stream disposed during shutdown, expected
+        }
     }
 
     private void ThrowIfDisposed()
@@ -180,6 +230,12 @@ public sealed partial class BulkWriter : IBulkWriter
             throw new InvalidOperationException(
                 "Cannot write after CompleteAsync has been called.");
         }
+    }
+
+    internal sealed class DoPutResponse
+    {
+        [JsonPropertyName("affected_rows")]
+        public uint AffectedRows { get; set; }
     }
 
     #region Logging
