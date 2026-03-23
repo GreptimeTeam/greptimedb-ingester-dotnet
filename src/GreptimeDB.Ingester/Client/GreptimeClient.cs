@@ -205,6 +205,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
             _flightClient.Value,
             _options.Database,
             _options.Authentication,
+            _options.WriteTimeout,
             _loggerFactory.CreateLogger<BulkWriter>());
     }
 

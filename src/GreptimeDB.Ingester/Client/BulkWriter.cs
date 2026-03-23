@@ -20,6 +20,7 @@ public sealed partial class BulkWriter : IBulkWriter
     private readonly FlightClient _flightClient;
     private readonly string _database;
     private readonly AuthenticationOptions? _auth;
+    private readonly TimeSpan _writeTimeout;
     private readonly ILogger _logger;
     private readonly RecordBatchBuilder _recordBatchBuilder;
 
@@ -36,11 +37,13 @@ public sealed partial class BulkWriter : IBulkWriter
         FlightClient flightClient,
         string database,
         AuthenticationOptions? auth,
+        TimeSpan writeTimeout,
         ILogger? logger = null)
     {
         _flightClient = flightClient;
         _database = database;
         _auth = auth;
+        _writeTimeout = writeTimeout;
         _logger = logger ?? NullLogger.Instance;
         _recordBatchBuilder = new RecordBatchBuilder();
 
@@ -104,11 +107,14 @@ public sealed partial class BulkWriter : IBulkWriter
 
         try
         {
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(_writeTimeout);
+
             await _putCall.RequestStream.CompleteAsync().ConfigureAwait(false);
 
             if (_recvTask != null)
             {
-                await _recvTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+                await _recvTask.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
             }
 
             if (_recvError != null)
@@ -127,6 +133,11 @@ public sealed partial class BulkWriter : IBulkWriter
         catch (GreptimeException)
         {
             throw;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException(
+                $"Bulk write operation timed out after {_writeTimeout.TotalSeconds} seconds.");
         }
         catch (RpcException ex)
         {
