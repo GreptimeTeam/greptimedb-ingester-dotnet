@@ -165,11 +165,6 @@ internal static class RequestBuilder
                 protoValue.DateValue = (int)value;
                 break;
 
-            case SdkColumnDataType.DateTime:
-                // Keep DateTime aligned with Go SDK behavior: encode as timestamp microseconds.
-                protoValue.TimestampMicrosecondValue = (long)value;
-                break;
-
             case SdkColumnDataType.TimestampSecond:
                 protoValue.TimestampSecondValue = (long)value;
                 break;
@@ -227,8 +222,6 @@ internal static class RequestBuilder
             SdkColumnDataType.Binary => Greptime.V1.ColumnDataType.Binary,
             SdkColumnDataType.String => Greptime.V1.ColumnDataType.String,
             SdkColumnDataType.Date => Greptime.V1.ColumnDataType.Date,
-            // Keep DateTime aligned with Go SDK behavior and latest Greptime recommendation.
-            SdkColumnDataType.DateTime => Greptime.V1.ColumnDataType.TimestampMicrosecond,
             SdkColumnDataType.TimestampSecond => Greptime.V1.ColumnDataType.TimestampSecond,
             SdkColumnDataType.TimestampMillisecond => Greptime.V1.ColumnDataType.TimestampMillisecond,
             SdkColumnDataType.TimestampMicrosecond => Greptime.V1.ColumnDataType.TimestampMicrosecond,

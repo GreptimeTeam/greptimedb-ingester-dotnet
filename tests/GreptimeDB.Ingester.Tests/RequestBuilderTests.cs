@@ -9,13 +9,13 @@ namespace GreptimeDB.Ingester.Tests;
 public class RequestBuilderTests
 {
     [Fact]
-    public void BuildRowInsertRequest_DateTime_UsesTimestampMicrosecond()
+    public void BuildRowInsertRequest_DateTimeValue_UsesTimestampMicrosecond()
     {
         var dateTimeValue = new DateTime(2024, 1, 15, 12, 0, 0, DateTimeKind.Utc).AddTicks(370); // +37us
         var expectedMicros = (dateTimeValue - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).Ticks / 10;
 
         var table = new TableBuilder("metrics")
-            .AddField("dt", ColumnDataType.DateTime)
+            .AddField("dt", ColumnDataType.TimestampMicrosecond)
             .AddTimestamp("ts", ColumnDataType.TimestampMillisecond)
             .AddRow(dateTimeValue, DateTime.UtcNow)
             .Build();

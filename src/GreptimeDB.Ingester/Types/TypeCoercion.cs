@@ -45,8 +45,6 @@ internal static class TypeCoercion
             ColumnDataType.Binary => CoerceToBinary(value, columnName),
 
             ColumnDataType.Date => CoerceToDate(value, columnName),
-            // Keep DateTime aligned with Go SDK behavior: map to timestamp microseconds.
-            ColumnDataType.DateTime => CoerceToTimestamp(value, ColumnDataType.TimestampMicrosecond, columnName),
 
             ColumnDataType.TimestampSecond or
             ColumnDataType.TimestampMillisecond or
@@ -375,7 +373,7 @@ internal static class TypeCoercion
         {
             ColumnDataType.TimestampSecond => ticks / TimeSpan.TicksPerSecond,
             ColumnDataType.TimestampMillisecond => ticks / TimeSpan.TicksPerMillisecond,
-            ColumnDataType.TimestampMicrosecond or ColumnDataType.DateTime => ticks / 10, // 1 tick = 100ns = 0.1us
+            ColumnDataType.TimestampMicrosecond => ticks / 10, // 1 tick = 100ns = 0.1us
             ColumnDataType.TimestampNanosecond => ticks * 100, // 1 tick = 100ns
             _ => throw new ArgumentOutOfRangeException(nameof(targetType), targetType, "Invalid timestamp type."),
         };
