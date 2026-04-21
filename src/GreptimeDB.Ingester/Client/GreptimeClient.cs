@@ -4,6 +4,9 @@ using GreptimeDB.Ingester.Exceptions;
 using GreptimeDB.Ingester.Internal;
 using Grpc.Core;
 using Grpc.Net.Client;
+using Grpc.Net.Client.Balancer;
+using Grpc.Net.Client.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -18,6 +21,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger _logger;
     private readonly GrpcChannel _channel;
+    private readonly ServiceProvider? _channelServices;
     private readonly GreptimeDatabase.GreptimeDatabaseClient _client;
     private readonly HealthCheck.HealthCheckClient _healthClient;
     private readonly Lazy<FlightClient> _flightClient;
@@ -35,14 +39,13 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = _loggerFactory.CreateLogger<GreptimeClient>();
 
-        var channelOptions = new GrpcChannelOptions();
-
-        _channel = GrpcChannel.ForAddress(options.Endpoint, channelOptions);
+        var endpoints = options.ResolveEndpoints();
+        (_channel, _channelServices) = BuildChannel(endpoints);
         _client = new GreptimeDatabase.GreptimeDatabaseClient(_channel);
         _healthClient = new HealthCheck.HealthCheckClient(_channel);
         _flightClient = new Lazy<FlightClient>(() => new FlightClient(_channel));
 
-        LogClientCreated(_logger, options.Endpoint);
+        LogClientCreated(_logger, endpoints.Count, endpoints[0]);
     }
 
     /// <summary>
@@ -265,6 +268,11 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         _disposed = true;
         await DisposeFlightClientAsync().ConfigureAwait(false);
         await _channel.ShutdownAsync().ConfigureAwait(false);
+        _channel.Dispose();
+        if (_channelServices is not null)
+        {
+            await _channelServices.DisposeAsync().ConfigureAwait(false);
+        }
         LogClientClosed(_logger);
     }
 
@@ -285,6 +293,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         _disposed = true;
         DisposeFlightClient();
         _channel.Dispose();
+        _channelServices?.Dispose();
         LogClientDisposed(_logger);
     }
 
@@ -349,6 +358,46 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
             cancellationToken: cancellationToken);
     }
 
+    private static (GrpcChannel Channel, ServiceProvider? Services) BuildChannel(IReadOnlyList<string> endpoints)
+    {
+        // Single endpoint: skip the balancer entirely. This preserves the original
+        // direct-channel behavior, including default TLS authority/SNI handling for
+        // https endpoints (the balancer path uses a synthetic channel authority,
+        // which can break certificate hostname validation).
+        if (endpoints.Count == 1)
+        {
+            return (GrpcChannel.ForAddress(endpoints[0]), null);
+        }
+
+        var addresses = new List<BalancerAddress>(endpoints.Count);
+        string? scheme = null;
+        foreach (var endpoint in endpoints)
+        {
+            var uri = new Uri(endpoint, UriKind.Absolute);
+            scheme ??= uri.Scheme;
+            addresses.Add(new BalancerAddress(uri.DnsSafeHost, uri.Port));
+        }
+
+        var services = new ServiceCollection();
+        services.AddSingleton<ResolverFactory>(new StaticResolverFactory(addresses));
+        var serviceProvider = services.BuildServiceProvider();
+
+        var channelOptions = new GrpcChannelOptions
+        {
+            ServiceProvider = serviceProvider,
+            ServiceConfig = new ServiceConfig
+            {
+                LoadBalancingConfigs = { new RoundRobinConfig() }
+            },
+            Credentials = scheme == Uri.UriSchemeHttps
+                ? ChannelCredentials.SecureSsl
+                : ChannelCredentials.Insecure
+        };
+
+        var channel = GrpcChannel.ForAddress("static:///greptime", channelOptions);
+        return (channel, serviceProvider);
+    }
+
     private static void CheckResponse(GreptimeResponse response)
     {
         var header = response.Header;
@@ -361,20 +410,13 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
 
     private void ThrowIfDisposed()
     {
-#if NET7_0_OR_GREATER
         ObjectDisposedException.ThrowIf(_disposed, this);
-#else
-        if (_disposed)
-        {
-            throw new ObjectDisposedException(nameof(GreptimeClient));
-        }
-#endif
     }
 
     #region Logging
 
-    [LoggerMessage(Level = LogLevel.Debug, Message = "GreptimeClient created for endpoint {Endpoint}")]
-    private static partial void LogClientCreated(ILogger logger, string endpoint);
+    [LoggerMessage(Level = LogLevel.Debug, Message = "GreptimeClient created with {EndpointCount} endpoint(s); first: {FirstEndpoint}")]
+    private static partial void LogClientCreated(ILogger logger, int endpointCount, string firstEndpoint);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Writing {TableCount} tables with {RowCount} total rows")]
     private static partial void LogWriteStarted(ILogger logger, int tableCount, int rowCount);

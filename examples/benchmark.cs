@@ -25,7 +25,7 @@ Console.WriteLine();
 // --- Health check ---
 var client = new GreptimeClient(new GreptimeClientOptions
 {
-    Endpoint = endpoint,
+    Endpoints = new List<string> { endpoint },
     Database = database,
     WriteTimeout = TimeSpan.FromSeconds(120)
 });

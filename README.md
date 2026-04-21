@@ -29,7 +29,7 @@ using GreptimeDB.Ingester.Types;
 // Create client
 var client = new GreptimeClient(new GreptimeClientOptions
 {
-    Endpoint = "http://localhost:4001",
+    Endpoints = new List<string> { "http://localhost:4001" },
     Database = "public"
 });
 
@@ -54,7 +54,7 @@ await client.DisposeAsync();
 ```csharp
 var client = new GreptimeClient(new GreptimeClientOptions
 {
-    Endpoint = "http://localhost:4001",
+    Endpoints = new List<string> { "http://localhost:4001" },
     Database = "public",
     ConnectTimeout = TimeSpan.FromSeconds(5),
     WriteTimeout = TimeSpan.FromSeconds(30)
@@ -66,7 +66,7 @@ With basic auth:
 ```csharp
 var client = new GreptimeClient(new GreptimeClientOptions
 {
-    Endpoint = "http://localhost:4001",
+    Endpoints = new List<string> { "http://localhost:4001" },
     Database = "public",
     Authentication = new AuthenticationOptions
     {
@@ -176,7 +176,7 @@ catch (GreptimeDB.Ingester.Exceptions.GreptimeException ex)
 ```csharp
 services.AddGreptimeClient(options =>
 {
-    options.Endpoint = "http://localhost:4001";
+    options.Endpoints = new List<string> { "http://localhost:4001" };
     options.Database = "public";
 });
 ```

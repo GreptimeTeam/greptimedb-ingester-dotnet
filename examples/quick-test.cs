@@ -9,7 +9,7 @@ using MySqlConnector;
 // --- Write via gRPC ---
 var client = new GreptimeClient(new GreptimeClientOptions
 {
-    Endpoint = "http://localhost:4001",
+    Endpoints = new List<string> { "http://localhost:4001" },
     Database = "public"
 });
 

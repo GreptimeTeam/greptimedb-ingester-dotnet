@@ -26,7 +26,7 @@ public sealed class BulkWriterIntegrationTests : IAsyncLifetime
         _fixture = fixture;
         _options = new GreptimeClientOptions
         {
-            Endpoint = _fixture.GetEndpoint(),
+            Endpoints = new List<string> { _fixture.GetEndpoint() },
             Database = Environment.GetEnvironmentVariable("GREPTIMEDB_DATABASE") ?? "public"
         };
     }
