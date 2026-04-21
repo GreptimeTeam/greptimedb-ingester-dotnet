@@ -15,11 +15,11 @@
 
     <!-- DI and Configuration -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.6" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.6" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.6" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.6" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.6" />
 
     <!-- Testing (xunit v3) -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
