@@ -6,9 +6,22 @@ namespace GreptimeDB.Ingester.Client;
 public sealed class GreptimeClientOptions
 {
     /// <summary>
-    /// Gets or sets the GreptimeDB endpoint (e.g., "http://localhost:4001").
+    /// Deprecated single-endpoint shorthand. Use <see cref="Endpoints"/>
+    /// instead; this property will be removed in a future release.
+    /// When <see cref="Endpoints"/> contains any non-whitespace entry it
+    /// takes precedence and this value is ignored.
     /// </summary>
+    [Obsolete("Use Endpoints instead. Endpoint is retained only for backward compatibility and will be removed in a future release.")]
     public string Endpoint { get; set; } = "http://localhost:4001";
+
+    /// <summary>
+    /// Gets or sets the list of GreptimeDB endpoints.
+    /// A single-element list is the single-node case; multiple entries enable
+    /// round-robin client-side load balancing with automatic failover across
+    /// endpoints.
+    /// All entries must share the same URI scheme (all http or all https).
+    /// </summary>
+    public IList<string> Endpoints { get; set; } = new List<string>();
 
     /// <summary>
     /// Gets or sets the database name.
@@ -31,14 +44,92 @@ public sealed class GreptimeClientOptions
     public TimeSpan WriteTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// Gets or sets the load-balancing strategy used when multiple
+    /// <see cref="Endpoints"/> are configured. Ignored for the single-endpoint
+    /// case, which always uses a direct channel. Defaults to
+    /// <see cref="LoadBalancingStrategy.Random"/>.
+    /// </summary>
+    public LoadBalancingStrategy LoadBalancing { get; set; } = LoadBalancingStrategy.Random;
+
+    /// <summary>
+    /// Returns the effective endpoint list: trimmed, non-whitespace entries of
+    /// <see cref="Endpoints"/> when the caller populated that list. Falls back
+    /// to a single-element list containing the deprecated <see cref="Endpoint"/>
+    /// value only when <see cref="Endpoints"/> is null or empty — never when
+    /// <see cref="Endpoints"/> was set but contained only whitespace, so silent
+    /// fallback cannot mask a misconfigured endpoint list (e.g. blank env vars).
+    /// </summary>
+    internal IReadOnlyList<string> ResolveEndpoints()
+    {
+        if (Endpoints != null && Endpoints.Count > 0)
+        {
+            return Endpoints
+                .Where(e => !string.IsNullOrWhiteSpace(e))
+                .Select(e => e.Trim())
+                .ToArray();
+        }
+
+#pragma warning disable CS0618 // Endpoint is deprecated but still honored as fallback for back-compat.
+        return string.IsNullOrWhiteSpace(Endpoint)
+            ? Array.Empty<string>()
+            : new[] { Endpoint.Trim() };
+#pragma warning restore CS0618
+    }
+
+    /// <summary>
     /// Validates the options and throws if invalid.
     /// </summary>
     /// <exception cref="ArgumentException">Thrown when options are invalid.</exception>
     public void Validate()
     {
-        if (string.IsNullOrWhiteSpace(Endpoint))
+        var endpoints = ResolveEndpoints();
+        if (endpoints.Count == 0)
         {
-            throw new ArgumentException("Endpoint is required.", nameof(Endpoint));
+            if (Endpoints != null && Endpoints.Count > 0)
+            {
+                throw new ArgumentException(
+                    "Endpoints was set but contained no non-whitespace entries.",
+                    nameof(Endpoints));
+            }
+
+            throw new ArgumentException(
+                "At least one endpoint is required. Set Endpoints; the deprecated Endpoint property is empty or whitespace.",
+                nameof(Endpoints));
+        }
+
+        string? firstScheme = null;
+        foreach (var endpoint in endpoints)
+        {
+            if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
+            {
+                throw new ArgumentException(
+                    $"Invalid endpoint URI: '{endpoint}'. Expected an absolute URI like 'http://host:port'.",
+                    nameof(Endpoints));
+            }
+
+            if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            {
+                throw new ArgumentException(
+                    $"Endpoint '{endpoint}' has unsupported scheme '{uri.Scheme}'. Use http or https.",
+                    nameof(Endpoints));
+            }
+
+            // Reject path/query/fragment: the multi-endpoint balancer uses host:port only
+            // (BalancerAddress), so a path would silently diverge from the single-endpoint case.
+            if (uri.AbsolutePath is not ("" or "/") || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
+            {
+                throw new ArgumentException(
+                    $"Endpoint '{endpoint}' must be a host:port URI without a path, query, or fragment.",
+                    nameof(Endpoints));
+            }
+
+            firstScheme ??= uri.Scheme;
+            if (!string.Equals(uri.Scheme, firstScheme, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    "All endpoints must share the same scheme (all http or all https).",
+                    nameof(Endpoints));
+            }
         }
 
         if (string.IsNullOrWhiteSpace(Database))
@@ -58,6 +149,25 @@ public sealed class GreptimeClientOptions
 
         Authentication?.Validate();
     }
+}
+
+/// <summary>
+/// Client-side load-balancing strategy used when multiple endpoints are
+/// configured.
+/// </summary>
+public enum LoadBalancingStrategy
+{
+    /// <summary>
+    /// Pick a ready endpoint uniformly at random for each call. Default.
+    /// Avoids the lock-step herding pattern that round-robin can produce when
+    /// many short-lived clients start at the same time.
+    /// </summary>
+    Random = 0,
+
+    /// <summary>
+    /// Cycle through ready endpoints in order.
+    /// </summary>
+    RoundRobin = 1,
 }
 
 /// <summary>

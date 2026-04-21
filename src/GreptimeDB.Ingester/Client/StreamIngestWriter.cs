@@ -222,14 +222,7 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
 
     private void ThrowIfDisposed()
     {
-#if NET7_0_OR_GREATER
         ObjectDisposedException.ThrowIf(_disposed == 1, this);
-#else
-        if (_disposed == 1)
-        {
-            throw new ObjectDisposedException(nameof(StreamIngestWriter));
-        }
-#endif
     }
 
     private void ThrowIfCompleted()

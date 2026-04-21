@@ -21,6 +21,7 @@
     <PackageReference Include="Apache.Arrow.Flight" />
 
     <!-- DI and Configuration -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />

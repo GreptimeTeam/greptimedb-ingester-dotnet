@@ -5,7 +5,7 @@
 [![NuGet Downloads](https://img.shields.io/nuget/dt/GreptimeDB.Ingester.svg)](https://www.nuget.org/packages/GreptimeDB.Ingester)
 [![NuGet Grpc](https://img.shields.io/nuget/v/GreptimeDB.Ingester.Grpc.svg)](https://www.nuget.org/packages/GreptimeDB.Ingester.Grpc)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-![.NET](https://img.shields.io/badge/.NET-6.0%20%7C%207.0%20%7C%208.0%20%7C%209.0%20%7C%2010.0-purple)
+![.NET](https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-purple)
 
 .NET SDK for writing data to [GreptimeDB](https://github.com/GreptimeTeam/greptimedb).
 
@@ -19,6 +19,13 @@
 dotnet add package GreptimeDB.Ingester
 ```
 
+> **.NET 6.0 / 7.0 users:** the latest version requires .NET 8.0 or newer.
+> Stay on the `0.1.x` line for net6.0 / net7.0 support:
+>
+> ```bash
+> dotnet add package GreptimeDB.Ingester --version 0.1.*
+> ```
+
 ## Quick Start
 
 ```csharp
@@ -29,7 +36,7 @@ using GreptimeDB.Ingester.Types;
 // Create client
 var client = new GreptimeClient(new GreptimeClientOptions
 {
-    Endpoint = "http://localhost:4001",
+    Endpoints = new List<string> { "http://localhost:4001" },
     Database = "public"
 });
 
@@ -54,7 +61,7 @@ await client.DisposeAsync();
 ```csharp
 var client = new GreptimeClient(new GreptimeClientOptions
 {
-    Endpoint = "http://localhost:4001",
+    Endpoints = new List<string> { "http://localhost:4001" },
     Database = "public",
     ConnectTimeout = TimeSpan.FromSeconds(5),
     WriteTimeout = TimeSpan.FromSeconds(30)
@@ -66,7 +73,7 @@ With basic auth:
 ```csharp
 var client = new GreptimeClient(new GreptimeClientOptions
 {
-    Endpoint = "http://localhost:4001",
+    Endpoints = new List<string> { "http://localhost:4001" },
     Database = "public",
     Authentication = new AuthenticationOptions
     {
@@ -76,11 +83,53 @@ var client = new GreptimeClient(new GreptimeClientOptions
 });
 ```
 
+## Multiple Endpoints
+
+Pass more than one endpoint to enable client-side load balancing and failover
+across a GreptimeDB cluster:
+
+```csharp
+var client = new GreptimeClient(new GreptimeClientOptions
+{
+    Endpoints = new List<string>
+    {
+        "http://node-a:4001",
+        "http://node-b:4001",
+        "http://node-c:4001",
+    },
+    Database = "public",
+});
+```
+
+A single-element list takes the direct-channel fast path (no balancer); two
+or more endpoints route through `Grpc.Net.Client.Balancer` with the configured
+strategy. All endpoints must share the same scheme (all `http` or all `https`)
+and must be plain `host:port` URIs without a path/query/fragment.
+
+### Load-balancing strategy
+
+`LoadBalancing` selects the policy used in the multi-endpoint case:
+
+```csharp
+new GreptimeClientOptions
+{
+    Endpoints = new List<string> { "http://node-a:4001", "http://node-b:4001" },
+    LoadBalancing = LoadBalancingStrategy.Random,     // default
+    // LoadBalancing = LoadBalancingStrategy.RoundRobin,
+};
+```
+
+- `Random` (default) — pick a ready endpoint uniformly at random per call.
+  Avoids the herding pattern that round-robin can produce when many
+  short-lived clients start simultaneously.
+- `RoundRobin` — cycle through ready endpoints in order.
+
 ## Features
 
 - **Unary Write** - Simple single-request writes via gRPC
 - **Streaming Write** - High-throughput streaming via gRPC for multiple tables
 - **Bulk Write** - Maximum throughput via Apache Arrow Flight
+- Multi-endpoint client-side load balancing (random / round-robin) with failover
 - Type coercion between .NET and GreptimeDB types
 - Health check
 - DI integration
@@ -176,7 +225,7 @@ catch (GreptimeDB.Ingester.Exceptions.GreptimeException ex)
 ```csharp
 services.AddGreptimeClient(options =>
 {
-    options.Endpoint = "http://localhost:4001";
+    options.Endpoints = new List<string> { "http://localhost:4001" };
     options.Database = "public";
 });
 ```
