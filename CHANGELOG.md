@@ -10,10 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Multi-endpoint support via `GreptimeClientOptions.Endpoints` (`IList<string>`).
-  Supplying more than one endpoint enables client-side round-robin load
-  balancing with automatic failover across endpoints. Single-element lists
-  behave as the previous single-node case. Backed by
-  `Grpc.Net.Client.Balancer`.
+  Supplying more than one endpoint enables client-side load balancing with
+  automatic failover across endpoints. Single-element lists behave as the
+  previous single-node case. Backed by `Grpc.Net.Client.Balancer`.
+- `GreptimeClientOptions.LoadBalancing` (`LoadBalancingStrategy`) selects the
+  multi-endpoint balancing policy. Supported: `Random` (default — picks a
+  ready endpoint uniformly at random per call, avoiding the herding pattern
+  that round-robin can produce when many short-lived clients start at the
+  same time) and `RoundRobin`.
 
 ### Changed
 
@@ -22,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   end-of-support, and `Grpc.Net.Client.Balancer` (required for the new
   multi-endpoint client-side load balancer) is only shipped in the package's
   `net8.0+` build, not its `netstandard2.1` build.
+  Users on `net6.0` / `net7.0` should pin to the `0.1.x` line, which keeps
+  those TFMs supported.
 
 ### Deprecated
 

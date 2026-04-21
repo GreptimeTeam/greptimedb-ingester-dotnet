@@ -40,7 +40,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         _logger = _loggerFactory.CreateLogger<GreptimeClient>();
 
         var endpoints = options.ResolveEndpoints();
-        (_channel, _channelServices) = BuildChannel(endpoints);
+        (_channel, _channelServices) = BuildChannel(endpoints, options.LoadBalancing);
         _client = new GreptimeDatabase.GreptimeDatabaseClient(_channel);
         _healthClient = new HealthCheck.HealthCheckClient(_channel);
         _flightClient = new Lazy<FlightClient>(() => new FlightClient(_channel));
@@ -358,7 +358,9 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
             cancellationToken: cancellationToken);
     }
 
-    private static (GrpcChannel Channel, ServiceProvider? Services) BuildChannel(IReadOnlyList<string> endpoints)
+    private static (GrpcChannel Channel, ServiceProvider? Services) BuildChannel(
+        IReadOnlyList<string> endpoints,
+        LoadBalancingStrategy strategy)
     {
         // Single endpoint: skip the balancer entirely. This preserves the original
         // direct-channel behavior, including default TLS authority/SNI handling for
@@ -380,14 +382,25 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
 
         var services = new ServiceCollection();
         services.AddSingleton<ResolverFactory>(new StaticResolverFactory(addresses));
+        if (strategy == LoadBalancingStrategy.Random)
+        {
+            services.AddSingleton<LoadBalancerFactory>(RandomBalancerFactory.Instance);
+        }
         var serviceProvider = services.BuildServiceProvider();
+
+        LoadBalancingConfig lbConfig = strategy switch
+        {
+            LoadBalancingStrategy.Random => new RandomConfig(),
+            LoadBalancingStrategy.RoundRobin => new RoundRobinConfig(),
+            _ => throw new ArgumentOutOfRangeException(nameof(strategy), strategy, "Unsupported load-balancing strategy."),
+        };
 
         var channelOptions = new GrpcChannelOptions
         {
             ServiceProvider = serviceProvider,
             ServiceConfig = new ServiceConfig
             {
-                LoadBalancingConfigs = { new RoundRobinConfig() }
+                LoadBalancingConfigs = { lbConfig }
             },
             Credentials = scheme == Uri.UriSchemeHttps
                 ? ChannelCredentials.SecureSsl

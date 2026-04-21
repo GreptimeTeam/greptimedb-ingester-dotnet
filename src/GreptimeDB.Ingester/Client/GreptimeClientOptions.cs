@@ -44,6 +44,14 @@ public sealed class GreptimeClientOptions
     public TimeSpan WriteTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// Gets or sets the load-balancing strategy used when multiple
+    /// <see cref="Endpoints"/> are configured. Ignored for the single-endpoint
+    /// case, which always uses a direct channel. Defaults to
+    /// <see cref="LoadBalancingStrategy.Random"/>.
+    /// </summary>
+    public LoadBalancingStrategy LoadBalancing { get; set; } = LoadBalancingStrategy.Random;
+
+    /// <summary>
     /// Returns the effective endpoint list: trimmed, non-whitespace entries of
     /// <see cref="Endpoints"/> when the caller populated that list. Falls back
     /// to a single-element list containing the deprecated <see cref="Endpoint"/>
@@ -77,11 +85,15 @@ public sealed class GreptimeClientOptions
         var endpoints = ResolveEndpoints();
         if (endpoints.Count == 0)
         {
-            var allWhitespace = Endpoints != null && Endpoints.Count > 0;
+            if (Endpoints != null && Endpoints.Count > 0)
+            {
+                throw new ArgumentException(
+                    "Endpoints was set but contained no non-whitespace entries.",
+                    nameof(Endpoints));
+            }
+
             throw new ArgumentException(
-                allWhitespace
-                    ? "Endpoints was set but contained no non-whitespace entries."
-                    : "At least one endpoint is required (set Endpoints).",
+                "At least one endpoint is required. Set Endpoints; the deprecated Endpoint property is empty or whitespace.",
                 nameof(Endpoints));
         }
 
@@ -99,6 +111,15 @@ public sealed class GreptimeClientOptions
             {
                 throw new ArgumentException(
                     $"Endpoint '{endpoint}' has unsupported scheme '{uri.Scheme}'. Use http or https.",
+                    nameof(Endpoints));
+            }
+
+            // Reject path/query/fragment: the multi-endpoint balancer uses host:port only
+            // (BalancerAddress), so a path would silently diverge from the single-endpoint case.
+            if (uri.AbsolutePath is not ("" or "/") || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
+            {
+                throw new ArgumentException(
+                    $"Endpoint '{endpoint}' must be a host:port URI without a path, query, or fragment.",
                     nameof(Endpoints));
             }
 
@@ -128,6 +149,25 @@ public sealed class GreptimeClientOptions
 
         Authentication?.Validate();
     }
+}
+
+/// <summary>
+/// Client-side load-balancing strategy used when multiple endpoints are
+/// configured.
+/// </summary>
+public enum LoadBalancingStrategy
+{
+    /// <summary>
+    /// Pick a ready endpoint uniformly at random for each call. Default.
+    /// Avoids the lock-step herding pattern that round-robin can produce when
+    /// many short-lived clients start at the same time.
+    /// </summary>
+    Random = 0,
+
+    /// <summary>
+    /// Cycle through ready endpoints in order.
+    /// </summary>
+    RoundRobin = 1,
 }
 
 /// <summary>
