@@ -81,15 +81,6 @@ public class ArrowTypeMapperTests
         result.Should().Be(Date32Type.Default);
     }
 
-    [Fact]
-    public void ToArrowType_DateTime_ReturnsTimestampMicrosecond()
-    {
-        var result = ArrowTypeMapper.ToArrowType(ColumnDataType.DateTime);
-        result.Should().BeOfType<TimestampType>();
-        var timestampType = (TimestampType)result;
-        timestampType.Unit.Should().Be(TimeUnit.Microsecond);
-    }
-
     [Theory]
     [InlineData(ColumnDataType.TimestampSecond, TimeUnit.Second)]
     [InlineData(ColumnDataType.TimestampMillisecond, TimeUnit.Millisecond)]
@@ -143,7 +134,6 @@ public class ArrowTypeMapperTests
     [InlineData(ColumnDataType.TimestampMillisecond, TimeUnit.Millisecond)]
     [InlineData(ColumnDataType.TimestampMicrosecond, TimeUnit.Microsecond)]
     [InlineData(ColumnDataType.TimestampNanosecond, TimeUnit.Nanosecond)]
-    [InlineData(ColumnDataType.DateTime, TimeUnit.Microsecond)]
     public void GetTimestampUnit_ValidTimestampTypes_ReturnsCorrectUnit(ColumnDataType dataType, TimeUnit expectedUnit)
     {
         var result = ArrowTypeMapper.GetTimestampUnit(dataType);
@@ -170,7 +160,6 @@ public class ArrowTypeMapperTests
     [InlineData(ColumnDataType.TimestampMillisecond, true)]
     [InlineData(ColumnDataType.TimestampMicrosecond, true)]
     [InlineData(ColumnDataType.TimestampNanosecond, true)]
-    [InlineData(ColumnDataType.DateTime, true)]
     [InlineData(ColumnDataType.Int64, false)]
     [InlineData(ColumnDataType.Date, false)]
     [InlineData(ColumnDataType.TimeSecond, false)]
@@ -212,7 +201,7 @@ public class ArrowTypeMapperTests
             ColumnDataType.UInt8, ColumnDataType.UInt16, ColumnDataType.UInt32, ColumnDataType.UInt64,
             ColumnDataType.Float32, ColumnDataType.Float64,
             ColumnDataType.String, ColumnDataType.Binary, ColumnDataType.Json,
-            ColumnDataType.Date, ColumnDataType.DateTime,
+            ColumnDataType.Date,
             ColumnDataType.TimestampSecond, ColumnDataType.TimestampMillisecond,
             ColumnDataType.TimestampMicrosecond, ColumnDataType.TimestampNanosecond,
             ColumnDataType.TimeSecond, ColumnDataType.TimeMillisecond,

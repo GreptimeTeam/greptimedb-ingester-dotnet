@@ -48,7 +48,17 @@ public enum ColumnDataType
     /// <summary>Date (days since Unix epoch).</summary>
     Date = 13,
 
-    /// <summary>DateTime (alias for TimestampMicrosecond).</summary>
+    /// <summary>
+    /// Deprecated alias for <see cref="TimestampMicrosecond"/>.
+    /// </summary>
+    /// <remarks>
+    /// GreptimeDB server treats <c>DATETIME</c> as an alias for
+    /// <c>TIMESTAMP_MICROSECOND</c>. This SDK normalizes the value to
+    /// <see cref="TimestampMicrosecond"/> at the <c>TableBuilder</c> boundary.
+    /// Prefer <see cref="TimestampMicrosecond"/> in new code.
+    /// See https://github.com/GreptimeTeam/greptimedb/pull/5506.
+    /// </remarks>
+    [Obsolete("DateTime is an alias for TimestampMicrosecond. Use ColumnDataType.TimestampMicrosecond instead. See https://github.com/GreptimeTeam/greptimedb/pull/5506.")]
     DateTime = 14,
 
     /// <summary>Timestamp with second precision.</summary>
@@ -93,7 +103,9 @@ public static class ColumnDataTypeExtensions
         ColumnDataType.TimestampMillisecond => true,
         ColumnDataType.TimestampMicrosecond => true,
         ColumnDataType.TimestampNanosecond => true,
+#pragma warning disable CS0618 // DateTime is a deprecated alias for TimestampMicrosecond; still accept it here so validation passes before TableBuilder normalizes it.
         ColumnDataType.DateTime => true,
+#pragma warning restore CS0618
         _ => false,
     };
 

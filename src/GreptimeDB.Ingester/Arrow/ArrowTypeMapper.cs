@@ -43,9 +43,8 @@ internal static class ArrowTypeMapper
             ColumnDataType.Binary => BinaryType.Default,
             ColumnDataType.Json => StringType.Default, // JSON stored as string
 
-            // Date and DateTime
+            // Date
             ColumnDataType.Date => Date32Type.Default,
-            ColumnDataType.DateTime => new TimestampType(TimeUnit.Microsecond, (string?)null),
 
             // Timestamps with different precisions
             ColumnDataType.TimestampSecond => new TimestampType(TimeUnit.Second, (string?)null),
@@ -77,7 +76,6 @@ internal static class ArrowTypeMapper
             ColumnDataType.TimestampMillisecond => TimeUnit.Millisecond,
             ColumnDataType.TimestampMicrosecond => TimeUnit.Microsecond,
             ColumnDataType.TimestampNanosecond => TimeUnit.Nanosecond,
-            ColumnDataType.DateTime => TimeUnit.Microsecond,
             _ => throw new ArgumentException($"Data type {dataType} is not a timestamp type", nameof(dataType))
         };
     }
@@ -90,8 +88,7 @@ internal static class ArrowTypeMapper
         return dataType is ColumnDataType.TimestampSecond
             or ColumnDataType.TimestampMillisecond
             or ColumnDataType.TimestampMicrosecond
-            or ColumnDataType.TimestampNanosecond
-            or ColumnDataType.DateTime;
+            or ColumnDataType.TimestampNanosecond;
     }
 
     /// <summary>

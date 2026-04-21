@@ -82,6 +82,13 @@ public sealed class TableBuilder
     /// <returns>This builder for chaining.</returns>
     public TableBuilder AddColumn(string name, ColumnDataType dataType, SemanticType semanticType)
     {
+#pragma warning disable CS0618 // DATETIME is a deprecated alias for TIMESTAMP_MICROSECOND (greptimedb PR #5506). Normalize here so the rest of the pipeline never special-cases it.
+        if (dataType == ColumnDataType.DateTime)
+        {
+            dataType = ColumnDataType.TimestampMicrosecond;
+        }
+#pragma warning restore CS0618
+
         var sanitizedName = NameSanitizer.Sanitize(name);
 
         // Check for duplicate column names

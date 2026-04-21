@@ -317,12 +317,12 @@ public class RecordBatchBuilderTests : IDisposable
     }
 
     [Fact]
-    public void Build_DateTimeColumn_UsesMicrosecondUnit()
+    public void Build_TimestampMicrosecondColumn_UsesMicrosecondUnit()
     {
         var value = new DateTime(2024, 1, 15, 10, 30, 0, DateTimeKind.Utc).AddTicks(450); // +45us
 
         var table = new TableBuilder("test_table")
-            .AddField("dt", ColumnDataType.DateTime)
+            .AddField("dt", ColumnDataType.TimestampMicrosecond)
             .AddTimestamp("ts", ColumnDataType.TimestampMillisecond)
             .AddRow(value, DateTime.UtcNow)
             .Build();
