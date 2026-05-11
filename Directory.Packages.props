@@ -10,8 +10,8 @@
     <PackageVersion Include="Google.Protobuf" Version="3.34.1" />
 
     <!-- Arrow Flight -->
-    <PackageVersion Include="Apache.Arrow" Version="22.1.0" />
-    <PackageVersion Include="Apache.Arrow.Flight" Version="22.1.0" />
+    <PackageVersion Include="Apache.Arrow" Version="23.0.0" />
+    <PackageVersion Include="Apache.Arrow.Flight" Version="23.0.0" />
 
     <!-- DI and Configuration -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.7" />
