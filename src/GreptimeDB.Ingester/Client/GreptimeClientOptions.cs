@@ -53,9 +53,10 @@ public sealed class GreptimeClientOptions
     /// <summary>
     /// Gets or sets request-level failover behavior for multi-endpoint clients.
     /// Unary write/delete requests can be retried against another endpoint after
-    /// transient transport failures. Streaming and bulk writers are not replayed
-    /// automatically; their final transport outcome updates endpoint health so
-    /// the next writer can pick a different endpoint.
+    /// safe transient transport failures. Client-side write deadlines are not
+    /// replayed because the write outcome is ambiguous. Streaming and bulk
+    /// writers are not replayed automatically; their final transport outcome
+    /// updates endpoint health so the next writer can pick a different endpoint.
     /// </summary>
     public FailoverOptions Failover { get; set; } = new();
 

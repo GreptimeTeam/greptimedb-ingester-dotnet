@@ -117,6 +117,32 @@ public class EndpointSelectorTests
         EndpointSelector.IsEndpointFailure(new TimeoutException()).Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData(StatusCode.Unavailable, true)]
+    [InlineData(StatusCode.ResourceExhausted, true)]
+    [InlineData(StatusCode.DeadlineExceeded, false)]
+    [InlineData(StatusCode.InvalidArgument, false)]
+    public void IsRetryableUnaryWriteFailure_DoesNotRetryAmbiguousWriteTimeouts(
+        StatusCode statusCode,
+        bool expected)
+    {
+        var exception = new RpcException(new Status(statusCode, "test"));
+
+        GreptimeClient.IsRetryableUnaryWriteFailure(exception).Should().Be(expected);
+    }
+
+    [Fact]
+    public void CreateCallOptions_UsesCallerProvidedDeadline()
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        using var cancellationTokenSource = new CancellationTokenSource();
+
+        var callOptions = GreptimeClient.CreateCallOptions(deadline, cancellationTokenSource.Token);
+
+        callOptions.Deadline.Should().Be(deadline);
+        callOptions.CancellationToken.Should().Be(cancellationTokenSource.Token);
+    }
+
     private static EndpointSelector CreateSelector(
         LoadBalancingStrategy strategy,
         FailoverOptions? options = null)

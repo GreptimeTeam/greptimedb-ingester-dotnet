@@ -332,6 +332,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         var failedEndpoints = new HashSet<string>(StringComparer.Ordinal);
         Exception? lastEndpointFailure = null;
         var maxAttempts = _endpointSelector.MaxAttempts;
+        var deadline = DateTime.UtcNow.Add(_options.WriteTimeout);
 
         for (var attempt = 0; attempt < maxAttempts; attempt++)
         {
@@ -340,21 +341,22 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
             try
             {
                 var response = await connection.DatabaseClient
-                    .HandleAsync(request, CreateCallOptions(cancellationToken))
+                    .HandleAsync(request, CreateCallOptions(deadline, cancellationToken))
                     .ConfigureAwait(false);
                 _endpointSelector.ReportSuccess(endpoint);
                 return response;
             }
             catch (RpcException ex) when (EndpointSelector.IsEndpointFailure(ex))
             {
-                failedEndpoints.Add(endpoint);
-                lastEndpointFailure = ex;
                 _endpointSelector.ReportFailure(endpoint);
 
-                if (attempt == maxAttempts - 1)
+                if (!IsRetryableUnaryWriteFailure(ex) || attempt == maxAttempts - 1)
                 {
                     throw;
                 }
+
+                failedEndpoints.Add(endpoint);
+                lastEndpointFailure = ex;
             }
         }
 
@@ -366,10 +368,16 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         return _connections[endpoint];
     }
 
-    private CallOptions CreateCallOptions(CancellationToken cancellationToken)
+    internal static bool IsRetryableUnaryWriteFailure(RpcException exception)
+    {
+        return exception.StatusCode is StatusCode.Unavailable
+            or StatusCode.ResourceExhausted;
+    }
+
+    internal static CallOptions CreateCallOptions(DateTime deadline, CancellationToken cancellationToken)
     {
         return new CallOptions(
-            deadline: DateTime.UtcNow.Add(_options.WriteTimeout),
+            deadline: deadline,
             cancellationToken: cancellationToken);
     }
 

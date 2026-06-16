@@ -128,7 +128,9 @@ new GreptimeClientOptions
 
 Unary `WriteAsync` and `DeleteAsync` retry transient endpoint-level failures
 against another configured endpoint when it is safe to do so. Server-side
-business errors are not retried and do not mark an endpoint unhealthy.
+business errors are not retried and do not mark an endpoint unhealthy. Client
+write deadlines are not replayed because the server may already have applied
+the write before the client observed the timeout.
 
 ```csharp
 new GreptimeClientOptions
