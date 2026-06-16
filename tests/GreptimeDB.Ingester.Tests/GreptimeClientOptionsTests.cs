@@ -129,6 +129,19 @@ public class GreptimeClientOptionsTests
     }
 
     [Fact]
+    public void Validate_DuplicateEndpoints_Throws()
+    {
+        var options = new GreptimeClientOptions
+        {
+            Endpoints = new List<string> { "http://host:4001", "http://host:4001" }
+        };
+
+        var act = () => options.Validate();
+
+        act.Should().Throw<ArgumentException>().WithMessage("*Duplicate endpoint*");
+    }
+
+    [Fact]
     public void Validate_NonHttpScheme_Throws()
     {
         var options = new GreptimeClientOptions

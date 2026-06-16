@@ -123,11 +123,10 @@ internal sealed class EndpointSelector
 
     public static bool IsEndpointFailure(Exception exception)
     {
-        if (exception is TimeoutException)
-        {
-            return true;
-        }
-
+        // A client-side timeout (the writer's WriteTimeout, surfaced as
+        // TimeoutException) reflects the caller's clock, not the endpoint's
+        // health, so it must not eject the endpoint — consistent with excluding
+        // gRPC DeadlineExceeded in IsEndpointFailureStatus.
         return exception is RpcException rpcException && IsEndpointFailureStatus(rpcException.StatusCode);
     }
 

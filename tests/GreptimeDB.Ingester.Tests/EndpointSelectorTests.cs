@@ -185,9 +185,11 @@ public class EndpointSelectorTests
     }
 
     [Fact]
-    public void IsEndpointFailure_TreatsTimeoutAsEndpointFailure()
+    public void IsEndpointFailure_DoesNotTreatTimeoutAsEndpointFailure()
     {
-        EndpointSelector.IsEndpointFailure(new TimeoutException()).Should().BeTrue();
+        // A client-side WriteTimeout reflects the caller's clock, not endpoint
+        // health, so it must not eject the endpoint.
+        EndpointSelector.IsEndpointFailure(new TimeoutException()).Should().BeFalse();
     }
 
     [Theory]

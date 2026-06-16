@@ -108,8 +108,16 @@ public sealed class GreptimeClientOptions
         }
 
         string? firstScheme = null;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var endpoint in endpoints)
         {
+            if (!seen.Add(endpoint))
+            {
+                throw new ArgumentException(
+                    $"Duplicate endpoint '{endpoint}'. Each endpoint must be unique.",
+                    nameof(Endpoints));
+            }
+
             if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
             {
                 throw new ArgumentException(

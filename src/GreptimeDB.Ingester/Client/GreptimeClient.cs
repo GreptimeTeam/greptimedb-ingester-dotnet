@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Apache.Arrow.Flight.Client;
 using Greptime.V1;
 using GreptimeDB.Ingester.Exceptions;
@@ -477,12 +478,12 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
 
     internal static bool TryCreateServerException(
         GreptimeResponse response,
-        out GreptimeServerException exception)
+        [NotNullWhen(true)] out GreptimeServerException? exception)
     {
         var status = response.Header?.Status;
         if (status == null || status.StatusCode == GreptimeStatusCodes.Success)
         {
-            exception = null!;
+            exception = null;
             return false;
         }
 
