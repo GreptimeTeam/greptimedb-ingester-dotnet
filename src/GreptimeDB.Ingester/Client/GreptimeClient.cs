@@ -344,6 +344,19 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
                     .HandleAsync(request, CreateCallOptions(deadline, cancellationToken))
                     .ConfigureAwait(false);
                 _endpointSelector.ReportSuccess(endpoint);
+
+                if (TryCreateServerException(response, out var serverException))
+                {
+                    if (!IsRetryableServerStatusCode(serverException.StatusCode) || attempt == maxAttempts - 1)
+                    {
+                        throw serverException;
+                    }
+
+                    failedEndpoints.Add(endpoint);
+                    lastEndpointFailure = serverException;
+                    continue;
+                }
+
                 return response;
             }
             catch (RpcException ex) when (EndpointSelector.IsEndpointFailure(ex))
@@ -372,6 +385,15 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
     {
         return exception.StatusCode is StatusCode.Unavailable
             or StatusCode.ResourceExhausted;
+    }
+
+    internal static bool IsRetryableServerStatusCode(uint statusCode)
+    {
+        return statusCode is GreptimeStatusCodes.RegionNotReady
+            or GreptimeStatusCodes.RegionBusy
+            or GreptimeStatusCodes.TableUnavailable
+            or GreptimeStatusCodes.StorageUnavailable
+            or GreptimeStatusCodes.RuntimeResourcesExhausted;
     }
 
     internal static CallOptions CreateCallOptions(DateTime deadline, CancellationToken cancellationToken)
@@ -441,12 +463,27 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
 
     private static void CheckResponse(GreptimeResponse response)
     {
-        var header = response.Header;
-        if (header?.Status != null && header.Status.StatusCode != 0)
+        if (TryCreateServerException(response, out var exception))
         {
-            throw new GreptimeException(
-                $"Request failed with status code {header.Status.StatusCode}: {header.Status.ErrMsg}");
+            throw exception;
         }
+    }
+
+    internal static bool TryCreateServerException(
+        GreptimeResponse response,
+        out GreptimeServerException exception)
+    {
+        var status = response.Header?.Status;
+        if (status == null || status.StatusCode == GreptimeStatusCodes.Success)
+        {
+            exception = null!;
+            return false;
+        }
+
+        exception = new GreptimeServerException(
+            $"Request failed with status code {status.StatusCode}: {status.ErrMsg}",
+            status.StatusCode);
+        return true;
     }
 
     private void ThrowIfDisposed()

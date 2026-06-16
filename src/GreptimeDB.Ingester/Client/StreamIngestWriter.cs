@@ -219,12 +219,10 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
 
     private void CheckResponse(GreptimeResponse response)
     {
-        var header = response.Header;
-        if (header?.Status != null && header.Status.StatusCode != 0)
+        if (GreptimeClient.TryCreateServerException(response, out var exception))
         {
             Settle(null);
-            throw new GreptimeException(
-                $"Request failed with status code {header.Status.StatusCode}: {header.Status.ErrMsg}");
+            throw exception;
         }
 
         Settle(null);
