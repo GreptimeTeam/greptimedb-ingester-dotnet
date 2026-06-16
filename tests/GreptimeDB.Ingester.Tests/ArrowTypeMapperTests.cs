@@ -14,7 +14,7 @@ public class ArrowTypeMapperTests
     public void ToArrowType_Boolean_ReturnsBooleanType()
     {
         var result = ArrowTypeMapper.ToArrowType(ColumnDataType.Boolean);
-        result.Should().Be(BooleanType.Default);
+        Assert.Same(BooleanType.Default, result);
     }
 
     [Theory]
@@ -25,7 +25,7 @@ public class ArrowTypeMapperTests
     public void ToArrowType_SignedIntegers_ReturnsCorrectType(ColumnDataType dataType, Type expectedType)
     {
         var result = ArrowTypeMapper.ToArrowType(dataType);
-        result.Should().BeOfType(expectedType);
+        Assert.IsType(expectedType, result);
     }
 
     [Theory]
@@ -36,49 +36,49 @@ public class ArrowTypeMapperTests
     public void ToArrowType_UnsignedIntegers_ReturnsCorrectType(ColumnDataType dataType, Type expectedType)
     {
         var result = ArrowTypeMapper.ToArrowType(dataType);
-        result.Should().BeOfType(expectedType);
+        Assert.IsType(expectedType, result);
     }
 
     [Fact]
     public void ToArrowType_Float32_ReturnsFloatType()
     {
         var result = ArrowTypeMapper.ToArrowType(ColumnDataType.Float32);
-        result.Should().Be(FloatType.Default);
+        Assert.Same(FloatType.Default, result);
     }
 
     [Fact]
     public void ToArrowType_Float64_ReturnsDoubleType()
     {
         var result = ArrowTypeMapper.ToArrowType(ColumnDataType.Float64);
-        result.Should().Be(DoubleType.Default);
+        Assert.Same(DoubleType.Default, result);
     }
 
     [Fact]
     public void ToArrowType_String_ReturnsStringType()
     {
         var result = ArrowTypeMapper.ToArrowType(ColumnDataType.String);
-        result.Should().Be(StringType.Default);
+        Assert.Same(StringType.Default, result);
     }
 
     [Fact]
     public void ToArrowType_Json_ReturnsStringType()
     {
         var result = ArrowTypeMapper.ToArrowType(ColumnDataType.Json);
-        result.Should().Be(StringType.Default);
+        Assert.Same(StringType.Default, result);
     }
 
     [Fact]
     public void ToArrowType_Binary_ReturnsBinaryType()
     {
         var result = ArrowTypeMapper.ToArrowType(ColumnDataType.Binary);
-        result.Should().Be(BinaryType.Default);
+        Assert.Same(BinaryType.Default, result);
     }
 
     [Fact]
     public void ToArrowType_Date_ReturnsDate32Type()
     {
         var result = ArrowTypeMapper.ToArrowType(ColumnDataType.Date);
-        result.Should().Be(Date32Type.Default);
+        Assert.Same(Date32Type.Default, result);
     }
 
     [Theory]
@@ -89,8 +89,7 @@ public class ArrowTypeMapperTests
     public void ToArrowType_Timestamps_ReturnsCorrectTimestampType(ColumnDataType dataType, TimeUnit expectedUnit)
     {
         var result = ArrowTypeMapper.ToArrowType(dataType);
-        result.Should().BeOfType<TimestampType>();
-        var timestampType = (TimestampType)result;
+        var timestampType = Assert.IsType<TimestampType>(result);
         timestampType.Unit.Should().Be(expectedUnit);
     }
 
@@ -100,8 +99,7 @@ public class ArrowTypeMapperTests
     public void ToArrowType_Time32Types_ReturnsCorrectTime32Type(ColumnDataType dataType, TimeUnit expectedUnit)
     {
         var result = ArrowTypeMapper.ToArrowType(dataType);
-        result.Should().BeOfType<Time32Type>();
-        var timeType = (Time32Type)result;
+        var timeType = Assert.IsType<Time32Type>(result);
         timeType.Unit.Should().Be(expectedUnit);
     }
 
@@ -111,8 +109,7 @@ public class ArrowTypeMapperTests
     public void ToArrowType_Time64Types_ReturnsCorrectTime64Type(ColumnDataType dataType, TimeUnit expectedUnit)
     {
         var result = ArrowTypeMapper.ToArrowType(dataType);
-        result.Should().BeOfType<Time64Type>();
-        var timeType = (Time64Type)result;
+        var timeType = Assert.IsType<Time64Type>(result);
         timeType.Unit.Should().Be(expectedUnit);
     }
 

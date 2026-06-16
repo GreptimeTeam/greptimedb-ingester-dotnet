@@ -85,8 +85,8 @@ var client = new GreptimeClient(new GreptimeClientOptions
 
 ## Multiple Endpoints
 
-Pass more than one endpoint to enable client-side load balancing and failover
-across a GreptimeDB cluster:
+Pass more than one endpoint to enable client-side endpoint selection and
+request-level failover across a GreptimeDB cluster:
 
 ```csharp
 var client = new GreptimeClient(new GreptimeClientOptions
@@ -101,10 +101,10 @@ var client = new GreptimeClient(new GreptimeClientOptions
 });
 ```
 
-A single-element list takes the direct-channel fast path (no balancer); two
-or more endpoints route through `Grpc.Net.Client.Balancer` with the configured
-strategy. All endpoints must share the same scheme (all `http` or all `https`)
-and must be plain `host:port` URIs without a path/query/fragment.
+A single-element list is the single-node case; two or more endpoints are picked
+per request with the configured strategy. All endpoints must share the same
+scheme (all `http` or all `https`) and must be plain `host:port` URIs without a
+path/query/fragment.
 
 ### Load-balancing strategy
 
@@ -123,6 +123,28 @@ new GreptimeClientOptions
   Avoids the herding pattern that round-robin can produce when many
   short-lived clients start simultaneously.
 - `RoundRobin` — cycle through ready endpoints in order.
+
+### Failover
+
+Unary `WriteAsync` and `DeleteAsync` retry transient endpoint-level failures
+against another configured endpoint when it is safe to do so. Server-side
+business errors are not retried and do not mark an endpoint unhealthy.
+
+```csharp
+new GreptimeClientOptions
+{
+    Endpoints = new List<string> { "http://node-a:4001", "http://node-b:4001" },
+    Failover = new FailoverOptions
+    {
+        MaxAttempts = 2, // defaults to trying each endpoint once
+    },
+};
+```
+
+Streaming and bulk writers are not automatically replayed after a transport
+failure because doing so could duplicate writes. Their final transport outcome
+still updates endpoint health, so creating a new writer can choose a healthy
+endpoint.
 
 ## Features
 

@@ -23,6 +23,16 @@ public class GreptimeClientOptionsTests
     }
 
     [Fact]
+    public void Failover_DefaultsToEnabled()
+    {
+        var failover = new GreptimeClientOptions().Failover;
+
+        failover.Enabled.Should().BeTrue();
+        failover.MaxAttempts.Should().BeNull();
+        failover.ConsecutiveFailuresBeforeEjection.Should().Be(5);
+    }
+
+    [Fact]
     public void Validate_SingleEndpoint_Passes()
     {
         var options = new GreptimeClientOptions
@@ -191,5 +201,53 @@ public class GreptimeClientOptionsTests
         };
 
         options.ResolveEndpoints().Should().Equal("http://host-a:4001", "http://host-b:4001");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Validate_InvalidFailoverMaxAttempts_Throws(int maxAttempts)
+    {
+        var options = new GreptimeClientOptions
+        {
+            Failover = new FailoverOptions
+            {
+                MaxAttempts = maxAttempts
+            }
+        };
+
+        var act = () => options.Validate();
+
+        act.Should().Throw<ArgumentException>().WithMessage("*MaxAttempts*");
+    }
+
+    [Fact]
+    public void Validate_InvalidFailoverEjectionDelay_Throws()
+    {
+        var options = new GreptimeClientOptions
+        {
+            Failover = new FailoverOptions
+            {
+                BaseEjectionDelay = TimeSpan.FromSeconds(10),
+                MaxEjectionDelay = TimeSpan.FromSeconds(1)
+            }
+        };
+
+        var act = () => options.Validate();
+
+        act.Should().Throw<ArgumentException>().WithMessage("*MaxEjectionDelay*");
+    }
+
+    [Fact]
+    public void Validate_NullFailover_Throws()
+    {
+        var options = new GreptimeClientOptions
+        {
+            Failover = null!
+        };
+
+        var act = () => options.Validate();
+
+        act.Should().Throw<ArgumentException>().WithMessage("*Failover*");
     }
 }

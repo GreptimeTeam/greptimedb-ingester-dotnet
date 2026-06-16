@@ -21,6 +21,7 @@ public sealed partial class BulkWriter : IBulkWriter
     private readonly string _database;
     private readonly AuthenticationOptions? _auth;
     private readonly TimeSpan _writeTimeout;
+    private readonly Action<Exception?>? _onSettle;
     private readonly ILogger _logger;
     private readonly RecordBatchBuilder _recordBatchBuilder;
 
@@ -32,18 +33,21 @@ public sealed partial class BulkWriter : IBulkWriter
     private readonly CancellationTokenSource _cts = new();
     private int _completed;
     private int _disposed;
+    private int _settled;
 
     internal BulkWriter(
         FlightClient flightClient,
         string database,
         AuthenticationOptions? auth,
         TimeSpan writeTimeout,
+        Action<Exception?>? onSettle = null,
         ILogger? logger = null)
     {
         _flightClient = flightClient;
         _database = database;
         _auth = auth;
         _writeTimeout = writeTimeout;
+        _onSettle = onSettle;
         _logger = logger ?? NullLogger.Instance;
         _recordBatchBuilder = new RecordBatchBuilder();
 
@@ -84,7 +88,15 @@ public sealed partial class BulkWriter : IBulkWriter
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        await _putCall!.RequestStream.WriteAsync(recordBatch).ConfigureAwait(false);
+        try
+        {
+            await _putCall!.RequestStream.WriteAsync(recordBatch).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is RpcException or TimeoutException)
+        {
+            Settle(ex);
+            throw;
+        }
 
         LogRecordBatchWritten(_logger, table.Name, table.RowCount);
     }
@@ -121,6 +133,11 @@ public sealed partial class BulkWriter : IBulkWriter
             var error = _recvError;
             if (error != null)
             {
+                if (error is Exception endpointError)
+                {
+                    Settle(endpointError);
+                }
+
                 if (error is GreptimeException greptimeEx)
                 {
                     throw greptimeEx;
@@ -129,6 +146,7 @@ public sealed partial class BulkWriter : IBulkWriter
                 throw new GreptimeException($"Bulk write failed: {error.Message}", error);
             }
 
+            Settle(null);
             LogBulkWriteCompleted(_logger, _serverAffectedRows);
             return _serverAffectedRows;
         }
@@ -139,11 +157,14 @@ public sealed partial class BulkWriter : IBulkWriter
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             _cts.Cancel();
-            throw new TimeoutException(
+            var timeoutException = new TimeoutException(
                 $"Bulk write operation timed out after {_writeTimeout.TotalSeconds} seconds.");
+            Settle(timeoutException);
+            throw timeoutException;
         }
         catch (RpcException ex)
         {
+            Settle(ex);
             LogBulkWriteError(_logger, ex.Message);
             throw new GreptimeException($"Bulk write failed: {ex.Message}", ex);
         }
@@ -199,8 +220,16 @@ public sealed partial class BulkWriter : IBulkWriter
         }
         headers.Add("x-greptime-db-name", _database);
 
-        _putCall = await _flightClient.StartPut(descriptor, schema, headers, deadline: null, cancellationToken)
-            .ConfigureAwait(false);
+        try
+        {
+            _putCall = await _flightClient.StartPut(descriptor, schema, headers, deadline: null, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (RpcException ex)
+        {
+            Settle(ex);
+            throw;
+        }
 
         _recvTask = RunRecvLoopAsync(_putCall.ResponseStream);
 
@@ -274,6 +303,16 @@ public sealed partial class BulkWriter : IBulkWriter
             throw new InvalidOperationException(
                 "Cannot write after CompleteAsync has been called.");
         }
+    }
+
+    private void Settle(Exception? error)
+    {
+        if (Interlocked.Exchange(ref _settled, 1) == 1)
+        {
+            return;
+        }
+
+        _onSettle?.Invoke(error);
     }
 
     internal sealed class DoPutResponse

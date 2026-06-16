@@ -17,6 +17,7 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
     private readonly GreptimeDatabase.GreptimeDatabaseClient _client;
     private readonly StreamIngestWriterOptions _options;
     private readonly Func<RequestHeader> _headerFactory;
+    private readonly Action<Exception?>? _onSettle;
     private readonly ILogger _logger;
 
     private readonly Channel<GreptimeRequest> _channel;
@@ -25,6 +26,7 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
 
     private int _completed; // 0 = not completed, 1 = completed
     private int _disposed;  // 0 = not disposed, 1 = disposed
+    private int _settled;   // 0 = no endpoint outcome reported, 1 = reported
 
     /// <summary>
     /// Creates a new StreamIngestWriter.
@@ -33,6 +35,7 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
         GreptimeDatabase.GreptimeDatabaseClient client,
         StreamIngestWriterOptions options,
         Func<RequestHeader> headerFactory,
+        Action<Exception?>? onSettle = null,
         ILogger? logger = null)
     {
         options.Validate();
@@ -40,6 +43,7 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
         _client = client;
         _options = options;
         _headerFactory = headerFactory;
+        _onSettle = onSettle;
         _logger = logger ?? NullLogger.Instance;
         _cts = new CancellationTokenSource();
 
@@ -122,8 +126,10 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
         }
         catch (OperationCanceledException)
         {
-            throw new TimeoutException(
+            var timeoutException = new TimeoutException(
                 $"Stream write operation timed out after {_options.WriteTimeout.TotalSeconds} seconds.");
+            Settle(timeoutException);
+            throw timeoutException;
         }
     }
 
@@ -195,6 +201,7 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
         }
         catch (RpcException ex)
         {
+            Settle(ex);
             LogStreamError(_logger, ex.Message);
             throw new GreptimeException($"Stream write failed: {ex.Message}", ex);
         }
@@ -210,14 +217,27 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
         };
     }
 
-    private static void CheckResponse(GreptimeResponse response)
+    private void CheckResponse(GreptimeResponse response)
     {
         var header = response.Header;
         if (header?.Status != null && header.Status.StatusCode != 0)
         {
+            Settle(null);
             throw new GreptimeException(
                 $"Request failed with status code {header.Status.StatusCode}: {header.Status.ErrMsg}");
         }
+
+        Settle(null);
+    }
+
+    private void Settle(Exception? error)
+    {
+        if (Interlocked.Exchange(ref _settled, 1) == 1)
+        {
+            return;
+        }
+
+        _onSettle?.Invoke(error);
     }
 
     private void ThrowIfDisposed()

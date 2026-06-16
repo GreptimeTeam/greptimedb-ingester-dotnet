@@ -24,7 +24,7 @@ public class BulkWriterTests
         var (affectedRows, error) = await BulkWriter.DrainResponsesAsync(mockStream.Object);
 
         affectedRows.Should().Be(40);
-        error.Should().BeNull();
+        Assert.Null(error);
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public class BulkWriterTests
         var (affectedRows, error) = await BulkWriter.DrainResponsesAsync(mockStream.Object);
 
         affectedRows.Should().Be(0);
-        error.Should().BeOfType<RpcException>();
+        Assert.IsType<RpcException>(error);
     }
 
     private static Mock<IAsyncStreamReader<FlightPutResult>> CreateMockStream(FlightPutResult[] responses)

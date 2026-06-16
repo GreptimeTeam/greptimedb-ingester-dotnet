@@ -39,11 +39,11 @@ public class RecordBatchBuilderTests : IDisposable
 
         batch.Schema.FieldsList.Should().HaveCount(3);
         batch.Schema.FieldsList[0].Name.Should().Be("tag1");
-        batch.Schema.FieldsList[0].DataType.Should().Be(StringType.Default);
+        Assert.Same(StringType.Default, batch.Schema.FieldsList[0].DataType);
         batch.Schema.FieldsList[1].Name.Should().Be("field1");
-        batch.Schema.FieldsList[1].DataType.Should().Be(Int64Type.Default);
+        Assert.Same(Int64Type.Default, batch.Schema.FieldsList[1].DataType);
         batch.Schema.FieldsList[2].Name.Should().Be("ts");
-        batch.Schema.FieldsList[2].DataType.Should().BeOfType<TimestampType>();
+        Assert.IsType<TimestampType>(batch.Schema.FieldsList[2].DataType);
     }
 
     [Fact]
@@ -330,8 +330,8 @@ public class RecordBatchBuilderTests : IDisposable
         using var batch = _builder.Build(table);
 
         var dtArray = (TimestampArray)batch.Column(0);
-        dtArray.Data.DataType.Should().BeOfType<TimestampType>();
-        ((TimestampType)dtArray.Data.DataType).Unit.Should().Be(TimeUnit.Microsecond);
+        var dataType = Assert.IsType<TimestampType>(dtArray.Data.DataType);
+        dataType.Unit.Should().Be(TimeUnit.Microsecond);
 
         var result = dtArray.GetTimestamp(0);
         result.Should().NotBeNull();
@@ -486,21 +486,21 @@ public class RecordBatchBuilderTests : IDisposable
         batch.ColumnCount.Should().Be(15);
 
         // Verify types
-        batch.Column(0).Should().BeOfType<StringArray>();
-        batch.Column(1).Should().BeOfType<BooleanArray>();
-        batch.Column(2).Should().BeOfType<Int8Array>();
-        batch.Column(3).Should().BeOfType<Int16Array>();
-        batch.Column(4).Should().BeOfType<Int32Array>();
-        batch.Column(5).Should().BeOfType<Int64Array>();
-        batch.Column(6).Should().BeOfType<UInt8Array>();
-        batch.Column(7).Should().BeOfType<UInt16Array>();
-        batch.Column(8).Should().BeOfType<UInt32Array>();
-        batch.Column(9).Should().BeOfType<UInt64Array>();
-        batch.Column(10).Should().BeOfType<FloatArray>();
-        batch.Column(11).Should().BeOfType<DoubleArray>();
-        batch.Column(12).Should().BeOfType<StringArray>();
-        batch.Column(13).Should().BeOfType<BinaryArray>();
-        batch.Column(14).Should().BeOfType<TimestampArray>();
+        Assert.IsType<StringArray>(batch.Column(0));
+        Assert.IsType<BooleanArray>(batch.Column(1));
+        Assert.IsType<Int8Array>(batch.Column(2));
+        Assert.IsType<Int16Array>(batch.Column(3));
+        Assert.IsType<Int32Array>(batch.Column(4));
+        Assert.IsType<Int64Array>(batch.Column(5));
+        Assert.IsType<UInt8Array>(batch.Column(6));
+        Assert.IsType<UInt16Array>(batch.Column(7));
+        Assert.IsType<UInt32Array>(batch.Column(8));
+        Assert.IsType<UInt64Array>(batch.Column(9));
+        Assert.IsType<FloatArray>(batch.Column(10));
+        Assert.IsType<DoubleArray>(batch.Column(11));
+        Assert.IsType<StringArray>(batch.Column(12));
+        Assert.IsType<BinaryArray>(batch.Column(13));
+        Assert.IsType<TimestampArray>(batch.Column(14));
     }
 
     #endregion
