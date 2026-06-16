@@ -3,7 +3,7 @@
   <PropertyGroup>
     <PackageId>GreptimeDB.Ingester</PackageId>
     <Description>GreptimeDB .NET ingester SDK for writing time-series data via gRPC</Description>
-    <Version>0.2.0</Version>
+    <Version>0.2.1</Version>
   </PropertyGroup>
 
   <!-- Allow test project to access internal types -->
