@@ -2,6 +2,15 @@ namespace GreptimeDB.Ingester.Client;
 
 internal static class GreptimeStatusCodes
 {
+    /// <summary>
+    /// gRPC trailer key carrying GreptimeDB's business status code on an errored
+    /// response (mirrors common_error::GREPTIME_DB_HEADER_ERROR_CODE). The
+    /// server's status-code to gRPC-code mapping is lossy (e.g. RegionBusy and
+    /// RateLimited both surface as ResourceExhausted), so this precise code is
+    /// what distinguishes retryable conditions from terminal ones.
+    /// </summary>
+    public const string ErrorCodeTrailer = "x-greptime-err-code";
+
     public const uint Success = 0;
     public const uint Internal = 1003;
     public const uint InvalidArguments = 1004;

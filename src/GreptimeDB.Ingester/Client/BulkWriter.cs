@@ -133,10 +133,7 @@ public sealed partial class BulkWriter : IBulkWriter
             var error = _recvError;
             if (error != null)
             {
-                if (error is Exception endpointError)
-                {
-                    Settle(endpointError);
-                }
+                Settle(error);
 
                 if (error is GreptimeException greptimeEx)
                 {

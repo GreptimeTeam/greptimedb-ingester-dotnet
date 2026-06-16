@@ -250,13 +250,10 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         }
         catch (RpcException ex)
         {
-            if (EndpointSelector.IsEndpointFailure(ex))
-            {
-                // HealthCheckAsync is observational and not part of the write
-                // failover contract, so it does not spend retry attempts here.
-                // The failure still feeds endpoint health for subsequent calls.
-                _endpointSelector.ReportFailure(endpoint);
-            }
+            // HealthCheckAsync is observational and not part of the write
+            // failover contract, so it does not spend retry attempts here.
+            // The outcome still feeds endpoint health for subsequent calls.
+            _endpointSelector.ReportOutcome(endpoint, ex);
 
             LogHealthCheckFailed(_logger, ex);
             return false;
@@ -359,11 +356,20 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
 
                 return response;
             }
-            catch (RpcException ex) when (EndpointSelector.IsEndpointFailure(ex))
+            catch (RpcException ex)
             {
-                _endpointSelector.ReportFailure(endpoint);
+                // GreptimeDB returns business errors as gRPC errors with the
+                // precise status code in a trailer, not as a successful response
+                // header. Classify retry on that code when present (so RegionBusy
+                // retries but RateLimited does not), and only fall back to the
+                // lossy gRPC code for genuine transport failures.
+                _endpointSelector.ReportOutcome(endpoint, ex);
 
-                if (!IsRetryableUnaryWriteFailure(ex) || attempt == maxAttempts - 1)
+                var retryable = EndpointSelector.TryGetServerStatusCode(ex, out var serverStatusCode)
+                    ? IsRetryableServerStatusCode(serverStatusCode)
+                    : IsRetryableUnaryWriteFailure(ex);
+
+                if (!retryable || attempt == maxAttempts - 1)
                 {
                     throw;
                 }

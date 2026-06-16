@@ -102,8 +102,8 @@ public class EndpointSelectorTests
 
     [Theory]
     [InlineData(StatusCode.Unavailable, true)]
-    [InlineData(StatusCode.DeadlineExceeded, true)]
     [InlineData(StatusCode.ResourceExhausted, true)]
+    [InlineData(StatusCode.DeadlineExceeded, false)]
     [InlineData(StatusCode.InvalidArgument, false)]
     [InlineData(StatusCode.Internal, false)]
     public void IsEndpointFailure_ClassifiesRpcStatus(StatusCode statusCode, bool expected)
@@ -111,6 +111,77 @@ public class EndpointSelectorTests
         var exception = new RpcException(new Grpc.Core.Status(statusCode, "test"));
 
         EndpointSelector.IsEndpointFailure(exception).Should().Be(expected);
+    }
+
+    [Fact]
+    public void TryGetServerStatusCode_ReadsBusinessCodeFromTrailer()
+    {
+        var trailers = new Metadata { { GreptimeStatusCodes.ErrorCodeTrailer, "4009" } };
+        var exception = new RpcException(
+            new Grpc.Core.Status(StatusCode.ResourceExhausted, "region busy"), trailers);
+
+        EndpointSelector.TryGetServerStatusCode(exception, out var code).Should().BeTrue();
+        code.Should().Be(GreptimeStatusCodes.RegionBusy);
+    }
+
+    [Fact]
+    public void TryGetServerStatusCode_ReturnsFalse_WhenTrailerAbsent()
+    {
+        var exception = new RpcException(new Grpc.Core.Status(StatusCode.ResourceExhausted, "no trailer"));
+
+        EndpointSelector.TryGetServerStatusCode(exception, out var code).Should().BeFalse();
+        code.Should().Be(0u);
+    }
+
+    [Fact]
+    public void TryGetServerStatusCode_ReturnsFalse_ForNonRpcException()
+    {
+        EndpointSelector.TryGetServerStatusCode(new TimeoutException(), out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void ReportOutcome_DoesNotEjectEndpoint_ForServerBusinessError()
+    {
+        var selector = CreateSelector(
+            LoadBalancingStrategy.RoundRobin,
+            new FailoverOptions
+            {
+                ConsecutiveFailuresBeforeEjection = 1,
+                BaseEjectionDelay = TimeSpan.FromMinutes(1),
+                MaxEjectionDelay = TimeSpan.FromMinutes(1),
+            });
+
+        // RegionBusy surfaces as gRPC ResourceExhausted, but the endpoint
+        // answered: it must keep being selected rather than getting ejected.
+        var trailers = new Metadata { { GreptimeStatusCodes.ErrorCodeTrailer, "4009" } };
+        var businessError = new RpcException(
+            new Grpc.Core.Status(StatusCode.ResourceExhausted, "region busy"), trailers);
+
+        selector.ReportOutcome("http://a:4001", businessError);
+        selector.ReportOutcome("http://a:4001", businessError);
+
+        new[] { selector.Select(), selector.Select(), selector.Select() }
+            .Should().Contain("http://a:4001");
+    }
+
+    [Fact]
+    public void ReportOutcome_EjectsEndpoint_ForTransportFailure()
+    {
+        var selector = CreateSelector(
+            LoadBalancingStrategy.RoundRobin,
+            new FailoverOptions
+            {
+                ConsecutiveFailuresBeforeEjection = 1,
+                BaseEjectionDelay = TimeSpan.FromMinutes(1),
+                MaxEjectionDelay = TimeSpan.FromMinutes(1),
+            });
+
+        var transportFailure = new RpcException(new Grpc.Core.Status(StatusCode.Unavailable, "down"));
+
+        selector.ReportOutcome("http://a:4001", transportFailure);
+
+        new[] { selector.Select(), selector.Select(), selector.Select() }
+            .Should().NotContain("http://a:4001");
     }
 
     [Fact]

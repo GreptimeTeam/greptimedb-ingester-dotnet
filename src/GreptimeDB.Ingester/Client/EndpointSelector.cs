@@ -106,6 +106,15 @@ internal sealed class EndpointSelector
             return;
         }
 
+        // A server business error (carried in a gRPC trailer) means the endpoint
+        // answered and is routing correctly. Clear its failure streak rather than
+        // ejecting it for a datanode-side condition such as region-busy.
+        if (TryGetServerStatusCode(error, out _))
+        {
+            ReportSuccess(endpoint);
+            return;
+        }
+
         if (IsEndpointFailure(error))
         {
             ReportFailure(endpoint);
@@ -122,10 +131,30 @@ internal sealed class EndpointSelector
         return exception is RpcException rpcException && IsEndpointFailureStatus(rpcException.StatusCode);
     }
 
+    /// <summary>
+    /// Extracts GreptimeDB's business status code from the gRPC error trailer when
+    /// present. The presence of a business code means the endpoint answered, which
+    /// callers use to steer retry and health classification independently of the
+    /// lossy gRPC status code (e.g. RegionBusy and RateLimited both surface as
+    /// ResourceExhausted but only the former is retryable).
+    /// </summary>
+    public static bool TryGetServerStatusCode(Exception exception, out uint statusCode)
+    {
+        statusCode = 0;
+        if (exception is not RpcException rpcException)
+        {
+            return false;
+        }
+
+        var entry = rpcException.Trailers.Get(GreptimeStatusCodes.ErrorCodeTrailer);
+        return entry != null && uint.TryParse(entry.Value, out statusCode);
+    }
+
     private static bool IsEndpointFailureStatus(StatusCode statusCode)
     {
+        // DeadlineExceeded is excluded: a write deadline reflects the caller's
+        // clock, not the endpoint's health, so it must not eject the endpoint.
         return statusCode is StatusCode.Unavailable
-            or StatusCode.DeadlineExceeded
             or StatusCode.ResourceExhausted;
     }
 
