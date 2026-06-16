@@ -15,7 +15,7 @@ public class TypeCoercionTests
     public void Coerce_Boolean_FromBool_Succeeds()
     {
         var result = TypeCoercion.Coerce(true, ColumnDataType.Boolean, TestColumn);
-        result.Should().Be(true);
+        Assert.Equal(true, result);
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public class TypeCoercionTests
     public void Coerce_Int8_FromVariousIntegers_Succeeds(object input)
     {
         var result = TypeCoercion.Coerce(input, ColumnDataType.Int8, TestColumn);
-        result.Should().Be((sbyte)1);
+        Assert.Equal((sbyte)1, result);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class TypeCoercionTests
     public void Coerce_Int64_FromAllIntegerTypes_Succeeds(object input)
     {
         var result = TypeCoercion.Coerce(input, ColumnDataType.Int64, TestColumn);
-        result.Should().Be(42L);
+        Assert.Equal(42L, result);
     }
 
     [Theory]
@@ -71,7 +71,7 @@ public class TypeCoercionTests
     public void Coerce_UInt64_FromUnsignedIntegers_Succeeds(object input)
     {
         var result = TypeCoercion.Coerce(input, ColumnDataType.UInt64, TestColumn);
-        result.Should().BeOfType<ulong>();
+        Assert.IsType<ulong>(result);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public class TypeCoercionTests
     public void Coerce_Float64_FromDouble_Succeeds()
     {
         var result = TypeCoercion.Coerce(3.14159, ColumnDataType.Float64, TestColumn);
-        result.Should().Be(3.14159);
+        Assert.Equal(3.14159, result);
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public class TypeCoercionTests
     public void Coerce_String_FromString_Succeeds()
     {
         var result = TypeCoercion.Coerce("hello", ColumnDataType.String, TestColumn);
-        result.Should().Be("hello");
+        Assert.Equal("hello", result);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class TypeCoercionTests
     {
         var input = new byte[] { 1, 2, 3 };
         var result = TypeCoercion.Coerce(input, ColumnDataType.Binary, TestColumn);
-        result.Should().BeEquivalentTo(input);
+        Assert.Equal(input, Assert.IsType<byte[]>(result));
     }
 
     #endregion
@@ -151,7 +151,7 @@ public class TypeCoercionTests
         var result = TypeCoercion.Coerce(dt, ColumnDataType.TimestampMillisecond, TestColumn);
 
         var expected = new DateTimeOffset(dt).ToUnixTimeMilliseconds();
-        result.Should().Be(expected);
+        Assert.Equal(expected, result);
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public class TypeCoercionTests
         var dto = new DateTimeOffset(2024, 1, 15, 12, 0, 0, TimeSpan.Zero);
         var result = TypeCoercion.Coerce(dto, ColumnDataType.TimestampSecond, TestColumn);
 
-        result.Should().Be(dto.ToUnixTimeSeconds());
+        Assert.Equal(dto.ToUnixTimeSeconds(), result);
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public class TypeCoercionTests
         var result = TypeCoercion.Coerce(dt, ColumnDataType.TimestampMicrosecond, TestColumn);
 
         var expected = (dt - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).Ticks / 10;
-        result.Should().Be(expected);
+        Assert.Equal(expected, result);
     }
 
     [Fact]
@@ -178,7 +178,7 @@ public class TypeCoercionTests
     {
         var timestamp = 1705320000000L;
         var result = TypeCoercion.Coerce(timestamp, ColumnDataType.TimestampMillisecond, TestColumn);
-        result.Should().Be(timestamp);
+        Assert.Equal(timestamp, result);
     }
 
     #endregion
@@ -189,16 +189,16 @@ public class TypeCoercionTests
     public void Coerce_Null_ReturnsNull()
     {
         var result = TypeCoercion.Coerce(null, ColumnDataType.String, TestColumn);
-        result.Should().BeNull();
+        Assert.Null(result);
     }
 
     [Fact]
     public void Coerce_Null_ForAnyType_ReturnsNull()
     {
-        TypeCoercion.Coerce(null, ColumnDataType.Int64, TestColumn).Should().BeNull();
-        TypeCoercion.Coerce(null, ColumnDataType.Float64, TestColumn).Should().BeNull();
-        TypeCoercion.Coerce(null, ColumnDataType.Boolean, TestColumn).Should().BeNull();
-        TypeCoercion.Coerce(null, ColumnDataType.TimestampMillisecond, TestColumn).Should().BeNull();
+        Assert.Null(TypeCoercion.Coerce(null, ColumnDataType.Int64, TestColumn));
+        Assert.Null(TypeCoercion.Coerce(null, ColumnDataType.Float64, TestColumn));
+        Assert.Null(TypeCoercion.Coerce(null, ColumnDataType.Boolean, TestColumn));
+        Assert.Null(TypeCoercion.Coerce(null, ColumnDataType.TimestampMillisecond, TestColumn));
     }
 
     #endregion
@@ -213,7 +213,7 @@ public class TypeCoercionTests
 
         // Days since Unix epoch (1970-01-01)
         var expected = (int)(dt - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalDays;
-        result.Should().Be(expected);
+        Assert.Equal(expected, result);
     }
 
     #endregion

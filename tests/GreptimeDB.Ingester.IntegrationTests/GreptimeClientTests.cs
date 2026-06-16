@@ -184,6 +184,39 @@ public sealed class GreptimeClientTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public async Task WriteAsync_MultipleEndpoints_FailsOverToNextEndpoint()
+    {
+        var options = new GreptimeClientOptions
+        {
+            Endpoints = new List<string>
+            {
+                "http://127.0.0.1:1",
+                _fixture.GetEndpoint(),
+            },
+            Database = Environment.GetEnvironmentVariable("GREPTIMEDB_DATABASE") ?? "public",
+            LoadBalancing = LoadBalancingStrategy.RoundRobin,
+            WriteTimeout = TimeSpan.FromSeconds(3),
+            Failover = new FailoverOptions
+            {
+                MaxAttempts = 2,
+                ConsecutiveFailuresBeforeEjection = 1,
+            },
+        };
+
+        await using var client = new GreptimeClient(options);
+        var table = new TableBuilder($"test_multi_endpoint_failover_{DateTime.UtcNow.Ticks}")
+            .AddTag("host", ColumnDataType.String)
+            .AddField("value", ColumnDataType.Float64)
+            .AddTimestamp("ts", ColumnDataType.TimestampMillisecond)
+            .AddRow("server1", 1.0, DateTime.UtcNow)
+            .Build();
+
+        var affectedRows = await client.WriteAsync(table);
+
+        affectedRows.Should().Be(1);
+    }
+
+    [Fact]
     public async Task DeleteAsync_ExistingRows_Succeeds()
     {
         // First, insert some data

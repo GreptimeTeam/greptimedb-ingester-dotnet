@@ -1,12 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
 using Apache.Arrow.Flight.Client;
 using Greptime.V1;
 using GreptimeDB.Ingester.Exceptions;
 using GreptimeDB.Ingester.Internal;
 using Grpc.Core;
 using Grpc.Net.Client;
-using Grpc.Net.Client.Balancer;
-using Grpc.Net.Client.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -20,11 +18,8 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
     private readonly GreptimeClientOptions _options;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger _logger;
-    private readonly GrpcChannel _channel;
-    private readonly ServiceProvider? _channelServices;
-    private readonly GreptimeDatabase.GreptimeDatabaseClient _client;
-    private readonly HealthCheck.HealthCheckClient _healthClient;
-    private readonly Lazy<FlightClient> _flightClient;
+    private readonly Dictionary<string, EndpointConnection> _connections;
+    private readonly EndpointSelector _endpointSelector;
     private bool _disposed;
 
     /// <summary>
@@ -40,10 +35,10 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         _logger = _loggerFactory.CreateLogger<GreptimeClient>();
 
         var endpoints = options.ResolveEndpoints();
-        (_channel, _channelServices) = BuildChannel(endpoints, options.LoadBalancing);
-        _client = new GreptimeDatabase.GreptimeDatabaseClient(_channel);
-        _healthClient = new HealthCheck.HealthCheckClient(_channel);
-        _flightClient = new Lazy<FlightClient>(() => new FlightClient(_channel));
+        _connections = endpoints.ToDictionary(
+            endpoint => endpoint,
+            endpoint => new EndpointConnection(endpoint));
+        _endpointSelector = new EndpointSelector(endpoints, options.LoadBalancing, options.Failover);
 
         LogClientCreated(_logger, endpoints.Count, endpoints[0]);
     }
@@ -76,8 +71,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         var totalRows = tableList.Sum(t => t.RowCount);
         LogWriteStarted(_logger, tableList.Count, totalRows);
 
-        var callOptions = CreateCallOptions(cancellationToken);
-        var response = await _client.HandleAsync(request, callOptions).ConfigureAwait(false);
+        var response = await ExecuteDatabaseRequestAsync(request, cancellationToken).ConfigureAwait(false);
 
         CheckResponse(response);
 
@@ -126,8 +120,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         var totalRows = tableList.Sum(t => t.RowCount);
         LogDeleteStarted(_logger, tableList.Count, totalRows);
 
-        var callOptions = CreateCallOptions(cancellationToken);
-        var response = await _client.HandleAsync(request, callOptions).ConfigureAwait(false);
+        var response = await ExecuteDatabaseRequestAsync(request, cancellationToken).ConfigureAwait(false);
 
         CheckResponse(response);
 
@@ -176,10 +169,13 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
             WriteTimeout = _options.WriteTimeout
         };
 
+        var endpoint = _endpointSelector.Select();
+        var connection = GetConnection(endpoint);
         return new StreamIngestWriter(
-            _client,
+            connection.DatabaseClient,
             options,
             BuildRequestHeader,
+            error => _endpointSelector.ReportOutcome(endpoint, error),
             _loggerFactory.CreateLogger<StreamIngestWriter>());
     }
 
@@ -204,11 +200,14 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
     {
         ThrowIfDisposed();
 
+        var endpoint = _endpointSelector.Select();
+        var connection = GetConnection(endpoint);
         return new BulkWriter(
-            _flightClient.Value,
+            connection.FlightClient,
             _options.Database,
             _options.Authentication,
             _options.WriteTimeout,
+            error => _endpointSelector.ReportOutcome(endpoint, error),
             _loggerFactory.CreateLogger<BulkWriter>());
     }
 
@@ -238,6 +237,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
     {
         ThrowIfDisposed();
 
+        var endpoint = _endpointSelector.Select();
         try
         {
             var request = new HealthCheckRequest();
@@ -245,11 +245,17 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
                 deadline: DateTime.UtcNow.Add(_options.ConnectTimeout),
                 cancellationToken: cancellationToken);
 
-            await _healthClient.HealthCheckAsync(request, callOptions).ConfigureAwait(false);
+            await GetConnection(endpoint).HealthClient.HealthCheckAsync(request, callOptions).ConfigureAwait(false);
+            _endpointSelector.ReportSuccess(endpoint);
             return true;
         }
         catch (RpcException ex)
         {
+            // HealthCheckAsync is observational and not part of the write
+            // failover contract, so it does not spend retry attempts here.
+            // The outcome still feeds endpoint health for subsequent calls.
+            _endpointSelector.ReportOutcome(endpoint, ex);
+
             LogHealthCheckFailed(_logger, ex);
             return false;
         }
@@ -266,12 +272,9 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         }
 
         _disposed = true;
-        await DisposeFlightClientAsync().ConfigureAwait(false);
-        await _channel.ShutdownAsync().ConfigureAwait(false);
-        _channel.Dispose();
-        if (_channelServices is not null)
+        foreach (var connection in _connections.Values)
         {
-            await _channelServices.DisposeAsync().ConfigureAwait(false);
+            await connection.DisposeAsync().ConfigureAwait(false);
         }
         LogClientClosed(_logger);
     }
@@ -291,9 +294,10 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         }
 
         _disposed = true;
-        DisposeFlightClient();
-        _channel.Dispose();
-        _channelServices?.Dispose();
+        foreach (var connection in _connections.Values)
+        {
+            connection.Dispose();
+        }
         LogClientDisposed(_logger);
     }
 
@@ -319,106 +323,174 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         return header;
     }
 
-    private async ValueTask DisposeFlightClientAsync()
+    private async Task<GreptimeResponse> ExecuteDatabaseRequestAsync(
+        GreptimeRequest request,
+        CancellationToken cancellationToken)
     {
-        if (_flightClient.IsValueCreated)
+        var failedEndpoints = new HashSet<string>(StringComparer.Ordinal);
+        Exception? lastEndpointFailure = null;
+        var maxAttempts = _endpointSelector.MaxAttempts;
+        var deadline = DateTime.UtcNow.Add(_options.WriteTimeout);
+
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
         {
-            switch (_flightClient.Value)
+            var endpoint = _endpointSelector.Select(failedEndpoints);
+            var connection = GetConnection(endpoint);
+            try
             {
-                case IAsyncDisposable asyncDisposable:
-                    await asyncDisposable.DisposeAsync().ConfigureAwait(false);
-                    break;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
+                var response = await connection.DatabaseClient
+                    .HandleAsync(request, CreateCallOptions(deadline, cancellationToken))
+                    .ConfigureAwait(false);
+                _endpointSelector.ReportSuccess(endpoint);
+
+                if (TryCreateServerException(response, out var serverException))
+                {
+                    if (!IsRetryableServerStatusCode(serverException.StatusCode) || attempt == maxAttempts - 1)
+                    {
+                        throw serverException;
+                    }
+
+                    failedEndpoints.Add(endpoint);
+                    lastEndpointFailure = serverException;
+                    continue;
+                }
+
+                return response;
+            }
+            catch (RpcException ex)
+            {
+                // GreptimeDB returns business errors as gRPC errors with the
+                // precise status code in a trailer, not as a successful response
+                // header. Classify retry on that code when present (so RegionBusy
+                // retries but RateLimited does not), and only fall back to the
+                // lossy gRPC code for genuine transport failures.
+                _endpointSelector.ReportOutcome(endpoint, ex);
+
+                var retryable = EndpointSelector.TryGetServerStatusCode(ex, out var serverStatusCode)
+                    ? IsRetryableServerStatusCode(serverStatusCode)
+                    : IsRetryableUnaryWriteFailure(ex);
+
+                if (!retryable || attempt == maxAttempts - 1)
+                {
+                    throw;
+                }
+
+                failedEndpoints.Add(endpoint);
+                lastEndpointFailure = ex;
             }
         }
+
+        throw lastEndpointFailure ?? new GreptimeException("No endpoint attempts were made.");
     }
 
-    private void DisposeFlightClient()
+    private EndpointConnection GetConnection(string endpoint)
     {
-        if (_flightClient.IsValueCreated)
-        {
-            switch (_flightClient.Value)
-            {
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
-                case IAsyncDisposable asyncDisposable:
-                    asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                    break;
-            }
-        }
+        return _connections[endpoint];
     }
 
-    private CallOptions CreateCallOptions(CancellationToken cancellationToken)
+    internal static bool IsRetryableUnaryWriteFailure(RpcException exception)
+    {
+        return exception.StatusCode is StatusCode.Unavailable
+            or StatusCode.ResourceExhausted;
+    }
+
+    internal static bool IsRetryableServerStatusCode(uint statusCode)
+    {
+        return statusCode is GreptimeStatusCodes.RegionNotReady
+            or GreptimeStatusCodes.RegionBusy
+            or GreptimeStatusCodes.TableUnavailable
+            or GreptimeStatusCodes.StorageUnavailable
+            or GreptimeStatusCodes.RuntimeResourcesExhausted;
+    }
+
+    internal static CallOptions CreateCallOptions(DateTime deadline, CancellationToken cancellationToken)
     {
         return new CallOptions(
-            deadline: DateTime.UtcNow.Add(_options.WriteTimeout),
+            deadline: deadline,
             cancellationToken: cancellationToken);
     }
 
-    private static (GrpcChannel Channel, ServiceProvider? Services) BuildChannel(
-        IReadOnlyList<string> endpoints,
-        LoadBalancingStrategy strategy)
+    private sealed class EndpointConnection : IDisposable, IAsyncDisposable
     {
-        // Single endpoint: skip the balancer entirely. This preserves the original
-        // direct-channel behavior, including default TLS authority/SNI handling for
-        // https endpoints (the balancer path uses a synthetic channel authority,
-        // which can break certificate hostname validation).
-        if (endpoints.Count == 1)
+        private readonly Lazy<FlightClient> _flightClient;
+
+        public EndpointConnection(string endpoint)
         {
-            return (GrpcChannel.ForAddress(endpoints[0]), null);
+            Channel = GrpcChannel.ForAddress(endpoint);
+            DatabaseClient = new GreptimeDatabase.GreptimeDatabaseClient(Channel);
+            HealthClient = new HealthCheck.HealthCheckClient(Channel);
+            _flightClient = new Lazy<FlightClient>(() => new FlightClient(Channel));
         }
 
-        var addresses = new List<BalancerAddress>(endpoints.Count);
-        string? scheme = null;
-        foreach (var endpoint in endpoints)
-        {
-            var uri = new Uri(endpoint, UriKind.Absolute);
-            scheme ??= uri.Scheme;
-            addresses.Add(new BalancerAddress(uri.DnsSafeHost, uri.Port));
-        }
+        public GrpcChannel Channel { get; }
 
-        var services = new ServiceCollection();
-        services.AddSingleton<ResolverFactory>(new StaticResolverFactory(addresses));
-        if (strategy == LoadBalancingStrategy.Random)
-        {
-            services.AddSingleton<LoadBalancerFactory>(RandomBalancerFactory.Instance);
-        }
-        var serviceProvider = services.BuildServiceProvider();
+        public GreptimeDatabase.GreptimeDatabaseClient DatabaseClient { get; }
 
-        LoadBalancingConfig lbConfig = strategy switch
-        {
-            LoadBalancingStrategy.Random => new RandomConfig(),
-            LoadBalancingStrategy.RoundRobin => new RoundRobinConfig(),
-            _ => throw new ArgumentOutOfRangeException(nameof(strategy), strategy, "Unsupported load-balancing strategy."),
-        };
+        public HealthCheck.HealthCheckClient HealthClient { get; }
 
-        var channelOptions = new GrpcChannelOptions
+        public FlightClient FlightClient => _flightClient.Value;
+
+        public async ValueTask DisposeAsync()
         {
-            ServiceProvider = serviceProvider,
-            ServiceConfig = new ServiceConfig
+            if (_flightClient.IsValueCreated)
             {
-                LoadBalancingConfigs = { lbConfig }
-            },
-            Credentials = scheme == Uri.UriSchemeHttps
-                ? ChannelCredentials.SecureSsl
-                : ChannelCredentials.Insecure
-        };
+                switch (_flightClient.Value)
+                {
+                    case IAsyncDisposable asyncDisposable:
+                        await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+                        break;
+                    case IDisposable disposable:
+                        disposable.Dispose();
+                        break;
+                }
+            }
 
-        var channel = GrpcChannel.ForAddress("static:///greptime", channelOptions);
-        return (channel, serviceProvider);
+            await Channel.ShutdownAsync().ConfigureAwait(false);
+            Channel.Dispose();
+        }
+
+        public void Dispose()
+        {
+            if (_flightClient.IsValueCreated)
+            {
+                switch (_flightClient.Value)
+                {
+                    case IDisposable disposable:
+                        disposable.Dispose();
+                        break;
+                    case IAsyncDisposable asyncDisposable:
+                        asyncDisposable.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                        break;
+                }
+            }
+
+            Channel.Dispose();
+        }
     }
 
     private static void CheckResponse(GreptimeResponse response)
     {
-        var header = response.Header;
-        if (header?.Status != null && header.Status.StatusCode != 0)
+        if (TryCreateServerException(response, out var exception))
         {
-            throw new GreptimeException(
-                $"Request failed with status code {header.Status.StatusCode}: {header.Status.ErrMsg}");
+            throw exception;
         }
+    }
+
+    internal static bool TryCreateServerException(
+        GreptimeResponse response,
+        [NotNullWhen(true)] out GreptimeServerException? exception)
+    {
+        var status = response.Header?.Status;
+        if (status == null || status.StatusCode == GreptimeStatusCodes.Success)
+        {
+            exception = null;
+            return false;
+        }
+
+        exception = new GreptimeServerException(
+            $"Request failed with status code {status.StatusCode}: {status.ErrMsg}",
+            status.StatusCode);
+        return true;
     }
 
     private void ThrowIfDisposed()
