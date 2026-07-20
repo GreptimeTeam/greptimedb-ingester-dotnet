@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `GreptimeClientOptions.KeepAlive` (`KeepAliveOptions`) to configure HTTP/2
+  keepalive on the gRPC connections shared by all write paths (unary, streaming,
+  bulk). Enabled by default with `PingDelay` 30s, `PingTimeout` 10s, and
+  `PingWhileIdle` true, so idle connections silently reset by intermediate load
+  balancers, NAT gateways, or firewalls are detected before the next write.
+
 ## [0.2.1] - 2026-06-16
 
 ### Added

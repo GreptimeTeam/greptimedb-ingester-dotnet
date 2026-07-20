@@ -263,4 +263,72 @@ public class GreptimeClientOptionsTests
 
         act.Should().Throw<ArgumentException>().WithMessage("*Failover*");
     }
+
+    [Fact]
+    public void KeepAlive_DefaultsToEnabled()
+    {
+        var keepAlive = new GreptimeClientOptions().KeepAlive;
+
+        keepAlive.Enabled.Should().BeTrue();
+        keepAlive.PingDelay.Should().Be(TimeSpan.FromSeconds(30));
+        keepAlive.PingTimeout.Should().Be(TimeSpan.FromSeconds(10));
+        keepAlive.PingWhileIdle.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Validate_KeepAlivePingDelayBelowMinimum_Throws()
+    {
+        var options = new GreptimeClientOptions
+        {
+            KeepAlive = new KeepAliveOptions { PingDelay = TimeSpan.FromMilliseconds(500) }
+        };
+
+        var act = () => options.Validate();
+
+        act.Should().Throw<ArgumentException>().WithMessage("*PingDelay*");
+    }
+
+    [Fact]
+    public void Validate_KeepAlivePingTimeoutBelowMinimum_Throws()
+    {
+        var options = new GreptimeClientOptions
+        {
+            KeepAlive = new KeepAliveOptions { PingTimeout = TimeSpan.Zero }
+        };
+
+        var act = () => options.Validate();
+
+        act.Should().Throw<ArgumentException>().WithMessage("*PingTimeout*");
+    }
+
+    [Fact]
+    public void Validate_DisabledKeepAlive_SkipsIntervalChecks()
+    {
+        var options = new GreptimeClientOptions
+        {
+            KeepAlive = new KeepAliveOptions
+            {
+                Enabled = false,
+                PingDelay = TimeSpan.Zero,
+                PingTimeout = TimeSpan.Zero
+            }
+        };
+
+        var act = () => options.Validate();
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void Validate_NullKeepAlive_Throws()
+    {
+        var options = new GreptimeClientOptions
+        {
+            KeepAlive = null!
+        };
+
+        var act = () => options.Validate();
+
+        act.Should().Throw<ArgumentException>().WithMessage("*KeepAlive*");
+    }
 }

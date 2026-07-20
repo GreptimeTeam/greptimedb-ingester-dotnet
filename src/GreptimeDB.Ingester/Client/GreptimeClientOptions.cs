@@ -62,6 +62,14 @@ public sealed class GreptimeClientOptions
     public FailoverOptions Failover { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets HTTP/2 keepalive for the gRPC connections shared by all write
+    /// paths (unary, streaming, bulk). Enabled by default to detect silent
+    /// connection resets by intermediate load balancers, NAT gateways, or
+    /// firewalls before the next write hits a dead connection.
+    /// </summary>
+    public KeepAliveOptions KeepAlive { get; set; } = new();
+
+    /// <summary>
     /// Returns the effective endpoint list: trimmed, non-whitespace entries of
     /// <see cref="Endpoints"/> when the caller populated that list. Falls back
     /// to a single-element list containing the deprecated <see cref="Endpoint"/>
@@ -172,6 +180,13 @@ public sealed class GreptimeClientOptions
         }
 
         Failover.Validate();
+
+        if (KeepAlive == null)
+        {
+            throw new ArgumentException("KeepAlive is required.", nameof(KeepAlive));
+        }
+
+        KeepAlive.Validate();
     }
 }
 
@@ -261,6 +276,66 @@ public sealed class FailoverOptions
             throw new ArgumentException(
                 "MaxEjectionDelay must be greater than or equal to BaseEjectionDelay.",
                 nameof(MaxEjectionDelay));
+        }
+    }
+}
+
+/// <summary>
+/// HTTP/2 keepalive options for the gRPC connections.
+/// </summary>
+public sealed class KeepAliveOptions
+{
+    // SocketsHttpHandler rejects ping intervals below 1s; validate rather than let it throw at runtime.
+    private static readonly TimeSpan MinInterval = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// Gets or sets whether keepalive pings are sent. Enabled by default.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the idle delay before the client sends a keepalive ping.
+    /// Defaults to 30 seconds, matching GreptimeDB's internal gRPC client.
+    /// </summary>
+    public TimeSpan PingDelay { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Gets or sets how long to wait for a ping acknowledgement before closing
+    /// the connection. Defaults to 10 seconds.
+    /// </summary>
+    public TimeSpan PingTimeout { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Gets or sets whether to ping while the connection is idle (no active
+    /// calls). Defaults to true; safe because GreptimeDB's server does not
+    /// enforce a minimum ping interval. This is what protects idle streaming
+    /// connections from silent resets.
+    /// </summary>
+    public bool PingWhileIdle { get; set; } = true;
+
+    /// <summary>
+    /// Validates the keepalive options and throws if invalid.
+    /// </summary>
+    /// <exception cref="ArgumentException">Thrown when options are invalid.</exception>
+    public void Validate()
+    {
+        if (!Enabled)
+        {
+            return;
+        }
+
+        if (PingDelay < MinInterval)
+        {
+            throw new ArgumentException(
+                $"PingDelay must be at least {MinInterval.TotalSeconds} second(s) when keepalive is enabled.",
+                nameof(PingDelay));
+        }
+
+        if (PingTimeout < MinInterval)
+        {
+            throw new ArgumentException(
+                $"PingTimeout must be at least {MinInterval.TotalSeconds} second(s) when keepalive is enabled.",
+                nameof(PingTimeout));
         }
     }
 }
