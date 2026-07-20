@@ -3,7 +3,7 @@
   <PropertyGroup>
     <PackageId>GreptimeDB.Ingester.Grpc</PackageId>
     <Description>Generated gRPC client code for GreptimeDB</Description>
-    <Version>0.2.1</Version>
+    <Version>0.3.0</Version>
     <!-- Disable doc generation for generated code -->
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591;CS1570</NoWarn>
