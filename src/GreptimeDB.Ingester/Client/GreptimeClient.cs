@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Net.Http;
 using Apache.Arrow.Flight.Client;
 using Greptime.V1;
 using GreptimeDB.Ingester.Exceptions;
@@ -37,7 +38,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         var endpoints = options.ResolveEndpoints();
         _connections = endpoints.ToDictionary(
             endpoint => endpoint,
-            endpoint => new EndpointConnection(endpoint));
+            endpoint => new EndpointConnection(endpoint, options.KeepAlive));
         _endpointSelector = new EndpointSelector(endpoints, options.LoadBalancing, options.Failover);
 
         LogClientCreated(_logger, endpoints.Count, endpoints[0]);
@@ -414,12 +415,38 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
     {
         private readonly Lazy<FlightClient> _flightClient;
 
-        public EndpointConnection(string endpoint)
+        public EndpointConnection(string endpoint, KeepAliveOptions keepAlive)
         {
-            Channel = GrpcChannel.ForAddress(endpoint);
+            Channel = CreateChannel(endpoint, keepAlive);
             DatabaseClient = new GreptimeDatabase.GreptimeDatabaseClient(Channel);
             HealthClient = new HealthCheck.HealthCheckClient(Channel);
             _flightClient = new Lazy<FlightClient>(() => new FlightClient(Channel));
+        }
+
+        private static GrpcChannel CreateChannel(string endpoint, KeepAliveOptions keepAlive)
+        {
+            // A custom HttpHandler resets EnableMultipleHttp2Connections to false;
+            // restore GrpcChannel's default so concurrent stream/bulk writes are
+            // not funneled onto a single HTTP/2 connection.
+            var handler = new SocketsHttpHandler
+            {
+                EnableMultipleHttp2Connections = true
+            };
+
+            if (keepAlive.Enabled)
+            {
+                handler.KeepAlivePingDelay = keepAlive.PingDelay;
+                handler.KeepAlivePingTimeout = keepAlive.PingTimeout;
+                handler.KeepAlivePingPolicy = keepAlive.PingWhileIdle
+                    ? HttpKeepAlivePingPolicy.Always
+                    : HttpKeepAlivePingPolicy.WithActiveRequests;
+            }
+
+            return GrpcChannel.ForAddress(endpoint, new GrpcChannelOptions
+            {
+                HttpHandler = handler,
+                DisposeHttpClient = true
+            });
         }
 
         public GrpcChannel Channel { get; }
