@@ -50,9 +50,65 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
     /// <param name="tables">The tables to write.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The number of affected rows.</returns>
-    public async Task<uint> WriteAsync(
+    public Task<uint> WriteAsync(
         IEnumerable<Table.Table> tables,
         CancellationToken cancellationToken = default)
+    {
+        return WriteCoreAsync(tables, headers: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes a single table to GreptimeDB.
+    /// </summary>
+    /// <param name="table">The table to write.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The number of affected rows.</returns>
+    public Task<uint> WriteAsync(Table.Table table, CancellationToken cancellationToken = default)
+    {
+        return WriteAsync(new[] { table }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes one or more tables to GreptimeDB with request hints.
+    /// </summary>
+    /// <param name="tables">The tables to write.</param>
+    /// <param name="hints">
+    /// Request hints sent as the <c>x-greptime-hints</c> header, for example
+    /// <c>append_mode=true</c> or <c>ttl=7d</c>. Table options in hints apply when the
+    /// server auto-creates a table.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The number of affected rows.</returns>
+    /// <exception cref="ArgumentException">Thrown when a hint key or value cannot be encoded.</exception>
+    public Task<uint> WriteAsync(
+        IEnumerable<Table.Table> tables,
+        IReadOnlyDictionary<string, string> hints,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(hints);
+        return WriteCoreAsync(tables, RequestHints.ToMetadata(hints, nameof(hints)), cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes a single table to GreptimeDB with request hints.
+    /// </summary>
+    /// <param name="table">The table to write.</param>
+    /// <param name="hints">Request hints; see <see cref="WriteAsync(IEnumerable{Table.Table}, IReadOnlyDictionary{string, string}, CancellationToken)"/>.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The number of affected rows.</returns>
+    /// <exception cref="ArgumentException">Thrown when a hint key or value cannot be encoded.</exception>
+    public Task<uint> WriteAsync(
+        Table.Table table,
+        IReadOnlyDictionary<string, string> hints,
+        CancellationToken cancellationToken = default)
+    {
+        return WriteAsync(new[] { table }, hints, cancellationToken);
+    }
+
+    private async Task<uint> WriteCoreAsync(
+        IEnumerable<Table.Table> tables,
+        Metadata? headers,
+        CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
 
@@ -72,7 +128,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         var totalRows = tableList.Sum(t => t.RowCount);
         LogWriteStarted(_logger, tableList.Count, totalRows);
 
-        var response = await ExecuteDatabaseRequestAsync(request, cancellationToken).ConfigureAwait(false);
+        var response = await ExecuteDatabaseRequestAsync(request, headers, cancellationToken).ConfigureAwait(false);
 
         CheckResponse(response);
 
@@ -80,17 +136,6 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         LogWriteCompleted(_logger, affectedRows);
 
         return affectedRows;
-    }
-
-    /// <summary>
-    /// Writes a single table to GreptimeDB.
-    /// </summary>
-    /// <param name="table">The table to write.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The number of affected rows.</returns>
-    public Task<uint> WriteAsync(Table.Table table, CancellationToken cancellationToken = default)
-    {
-        return WriteAsync(new[] { table }, cancellationToken);
     }
 
     /// <summary>
@@ -121,7 +166,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
         var totalRows = tableList.Sum(t => t.RowCount);
         LogDeleteStarted(_logger, tableList.Count, totalRows);
 
-        var response = await ExecuteDatabaseRequestAsync(request, cancellationToken).ConfigureAwait(false);
+        var response = await ExecuteDatabaseRequestAsync(request, headers: null, cancellationToken).ConfigureAwait(false);
 
         CheckResponse(response);
 
@@ -326,6 +371,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
 
     private async Task<GreptimeResponse> ExecuteDatabaseRequestAsync(
         GreptimeRequest request,
+        Metadata? headers,
         CancellationToken cancellationToken)
     {
         var failedEndpoints = new HashSet<string>(StringComparer.Ordinal);
@@ -340,7 +386,7 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
             try
             {
                 var response = await connection.DatabaseClient
-                    .HandleAsync(request, CreateCallOptions(deadline, cancellationToken))
+                    .HandleAsync(request, CreateCallOptions(deadline, headers, cancellationToken))
                     .ConfigureAwait(false);
                 _endpointSelector.ReportSuccess(endpoint);
 
@@ -404,9 +450,13 @@ public sealed partial class GreptimeClient : IAsyncDisposable, IDisposable
             or GreptimeStatusCodes.RuntimeResourcesExhausted;
     }
 
-    internal static CallOptions CreateCallOptions(DateTime deadline, CancellationToken cancellationToken)
+    internal static CallOptions CreateCallOptions(
+        DateTime deadline,
+        Metadata? headers,
+        CancellationToken cancellationToken)
     {
         return new CallOptions(
+            headers: headers,
             deadline: deadline,
             cancellationToken: cancellationToken);
     }

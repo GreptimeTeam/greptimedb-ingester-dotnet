@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `ColumnDataType.Json2` for GreptimeDB JSON2 columns (GreptimeDB 1.2.1+). Values are
+  JSON strings whose top-level value is an object or `null`; they are parsed in `AddRow`
+  and sent as native protobuf JSON values. Supported for Field columns with unary and
+  streaming writes; bulk writes reject it.
+- Write hints via the `x-greptime-hints` header: `GreptimeClient.WriteAsync` overloads
+  taking `hints`, and `StreamIngestWriterOptions.Hints`. JSON2 tables require the
+  `append_mode=true` hint when auto-created.
+
 ## [0.3.0] - 2026-07-20
 
 ### Added

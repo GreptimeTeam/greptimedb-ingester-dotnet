@@ -1,4 +1,4 @@
-#:package GreptimeDB.Ingester@0.1.0
+#:package GreptimeDB.Ingester@0.4.0
 #:package MySqlConnector@2.4.0
 
 using GreptimeDB.Ingester.Client;

@@ -87,6 +87,18 @@ public enum ColumnDataType
 
     /// <summary>JSON data stored as string.</summary>
     Json = 31,
+
+    /// <summary>
+    /// JSON2: a JSON object stored in GreptimeDB's native JSON format.
+    /// Values are JSON strings whose top-level value is an object or <c>null</c>.
+    /// </summary>
+    /// <remarks>
+    /// SDK-only value with no greptime-proto counterpart; it is sent as <c>JSON</c>
+    /// with a native JSON type extension. Supported for Field columns and row writes
+    /// (unary and streaming) only, not bulk writes. Requires GreptimeDB 1.2.1 or later,
+    /// and the table must use <c>append_mode = 'true'</c>.
+    /// </remarks>
+    Json2 = 1000,
 }
 
 /// <summary>

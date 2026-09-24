@@ -42,6 +42,8 @@ internal static class ArrowTypeMapper
             ColumnDataType.String => StringType.Default,
             ColumnDataType.Binary => BinaryType.Default,
             ColumnDataType.Json => StringType.Default, // JSON stored as string
+            ColumnDataType.Json2 => throw new NotSupportedException(
+                "JSON2 is not supported by bulk writes; use WriteAsync or a stream ingest writer."),
 
             // Date
             ColumnDataType.Date => Date32Type.Default,

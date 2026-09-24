@@ -212,7 +212,7 @@ public class EndpointSelectorTests
         var deadline = DateTime.UtcNow.AddSeconds(30);
         using var cancellationTokenSource = new CancellationTokenSource();
 
-        var callOptions = GreptimeClient.CreateCallOptions(deadline, cancellationTokenSource.Token);
+        var callOptions = GreptimeClient.CreateCallOptions(deadline, headers: null, cancellationTokenSource.Token);
 
         callOptions.Deadline.Should().Be(deadline);
         callOptions.CancellationToken.Should().Be(cancellationTokenSource.Token);

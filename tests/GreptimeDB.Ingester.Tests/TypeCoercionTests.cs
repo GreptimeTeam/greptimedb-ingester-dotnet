@@ -217,4 +217,22 @@ public class TypeCoercionTests
     }
 
     #endregion
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("{")]
+    [InlineData("{\"a\":1} trailing")]
+    [InlineData("{\"a\":1,}")]
+    [InlineData("[]")]
+    [InlineData("1")]
+    [InlineData("true")]
+    [InlineData("\"text\"")]
+    [InlineData("{\"a\":1e400}")]
+    [InlineData("{\"a\":\"\\ud800\"}")]
+    public void Coerce_Json2_InvalidInput_ThrowsTypeMismatch(string json)
+    {
+        var act = () => TypeCoercion.Coerce(json, ColumnDataType.Json2, TestColumn);
+
+        act.Should().Throw<TypeMismatchException>().WithMessage("*Invalid JSON2 value*");
+    }
 }
