@@ -44,6 +44,30 @@ public sealed class StreamIngestWriterIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task StreamWrite_Json2WithAppendModeHint_Succeeds()
+    {
+        var tableName = $"test_stream_json2_{DateTime.UtcNow.Ticks}";
+
+        // Auto-creating a JSON2 table fails without append_mode=true, so this also covers stream hints.
+        await using var writer = Client.CreateStreamIngestWriter(new StreamIngestWriterOptions
+        {
+            Hints = new Dictionary<string, string> { ["append_mode"] = "true" }
+        });
+
+        var table = new TableBuilder(tableName)
+            .AddField("payload", ColumnDataType.Json2)
+            .AddTimestamp("ts", ColumnDataType.TimestampMillisecond)
+            .AddRow("""{"message":"hello","nested":{"items":[1,"two",null]}}""", 1L)
+            .AddRow(null, 2L)
+            .Build();
+
+        await writer.WriteAsync(table);
+        var affectedRows = await writer.CompleteAsync();
+
+        affectedRows.Should().Be(2);
+    }
+
+    [Fact]
     public async Task StreamWrite_SingleTable_DataPersisted()
     {
         var tableName = $"test_stream_single_{DateTime.UtcNow.Ticks}";

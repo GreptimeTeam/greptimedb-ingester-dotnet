@@ -1,4 +1,5 @@
 using FluentAssertions;
+using GreptimeDB.Ingester.Exceptions;
 using GreptimeDB.Ingester.Internal;
 using GreptimeDB.Ingester.Table;
 using GreptimeDB.Ingester.Types;
@@ -37,5 +38,13 @@ public class TableBuilderTests
 
         var request = RequestBuilder.BuildRowInsertRequest(table);
         request.Rows.Schema[1].Datatype.Should().Be(Greptime.V1.ColumnDataType.TimestampMicrosecond);
+    }
+
+    [Fact]
+    public void AddTag_Json2_ThrowsValidation()
+    {
+        var act = () => new TableBuilder("logs").AddTag("payload", ColumnDataType.Json2);
+
+        act.Should().Throw<ValidationException>().WithMessage("*JSON2*field*");
     }
 }

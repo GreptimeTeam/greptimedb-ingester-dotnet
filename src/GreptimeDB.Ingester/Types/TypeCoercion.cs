@@ -1,4 +1,5 @@
 using GreptimeDB.Ingester.Exceptions;
+using GreptimeDB.Ingester.Internal;
 
 namespace GreptimeDB.Ingester.Types;
 
@@ -42,6 +43,7 @@ internal static class TypeCoercion
             ColumnDataType.Float64 => CoerceToFloat64(value, columnName),
 
             ColumnDataType.String or ColumnDataType.Json => CoerceToString(value, columnName),
+            ColumnDataType.Json2 => CoerceToJson2(value, columnName),
             ColumnDataType.Binary => CoerceToBinary(value, columnName),
 
             ColumnDataType.Date => CoerceToDate(value, columnName),
@@ -308,6 +310,24 @@ internal static class TypeCoercion
             string s => s,
             _ => throw new TypeMismatchException(columnName, value.GetType(), ColumnDataType.String),
         };
+    }
+
+    private static Greptime.V1.JsonValue? CoerceToJson2(object value, string columnName)
+    {
+        if (value is not string json)
+        {
+            throw new TypeMismatchException(columnName, value.GetType(), ColumnDataType.Json2);
+        }
+
+        try
+        {
+            return Json2Encoder.Parse(json);
+        }
+        catch (FormatException ex)
+        {
+            throw new TypeMismatchException(columnName, value.GetType(), ColumnDataType.Json2,
+                $"Invalid JSON2 value: {ex.Message}");
+        }
     }
 
     private static byte[] CoerceToBinary(object value, string columnName)

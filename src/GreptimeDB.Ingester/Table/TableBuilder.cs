@@ -89,6 +89,11 @@ public sealed class TableBuilder
         }
 #pragma warning restore CS0618
 
+        if (dataType == ColumnDataType.Json2 && semanticType != SemanticType.Field)
+        {
+            throw new ValidationException($"JSON2 is only supported for field columns, column '{name}'.");
+        }
+
         var sanitizedName = NameSanitizer.Sanitize(name);
 
         // Check for duplicate column names

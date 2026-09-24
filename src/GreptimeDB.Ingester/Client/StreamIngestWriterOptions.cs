@@ -1,3 +1,5 @@
+using GreptimeDB.Ingester.Internal;
+
 namespace GreptimeDB.Ingester.Client;
 
 /// <summary>
@@ -20,9 +22,17 @@ public sealed class StreamIngestWriterOptions
     public TimeSpan WriteTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// Request hints sent as the <c>x-greptime-hints</c> header when the stream is opened,
+    /// for example <c>append_mode=true</c>. They apply to every write on the stream.
+    /// Default: none.
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? Hints { get; set; }
+
+    /// <summary>
     /// Validates the options and throws if any values are invalid.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when a value is out of valid range.</exception>
+    /// <exception cref="ArgumentException">Thrown when a hint key or value cannot be encoded.</exception>
     public void Validate()
     {
         if (BufferCapacity <= 0)
@@ -39,6 +49,11 @@ public sealed class StreamIngestWriterOptions
                 nameof(WriteTimeout),
                 WriteTimeout,
                 "Write timeout must be greater than zero.");
+        }
+
+        if (Hints is not null)
+        {
+            RequestHints.Validate(Hints, nameof(Hints));
         }
     }
 }

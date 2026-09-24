@@ -47,12 +47,17 @@ internal static class RequestBuilder
         // Build schema
         foreach (var column in table.Columns)
         {
-            rows.Schema.Add(new ColumnSchema
+            var columnSchema = new ColumnSchema
             {
                 ColumnName = column.Name,
                 Datatype = ToProtoDataType(column.DataType),
                 SemanticType = ToProtoSemanticType(column.SemanticType)
-            });
+            };
+            if (column.DataType == SdkColumnDataType.Json2)
+            {
+                MarkJson2(columnSchema);
+            }
+            rows.Schema.Add(columnSchema);
         }
 
         // Build row data
@@ -157,6 +162,10 @@ internal static class RequestBuilder
                 protoValue.StringValue = (string)value;
                 break;
 
+            case SdkColumnDataType.Json2:
+                protoValue.JsonValue = (JsonValue)value;
+                break;
+
             case SdkColumnDataType.Binary:
                 protoValue.BinaryValue = ByteString.CopyFrom((byte[])value);
                 break;
@@ -204,6 +213,24 @@ internal static class RequestBuilder
         return protoValue;
     }
 
+    // Same column options as SQL-created JSON2 columns, so auto-created tables get the JSON2 layout.
+    private static void MarkJson2(ColumnSchema columnSchema)
+    {
+        columnSchema.DatatypeExtension = new ColumnDataTypeExtension
+        {
+            JsonNativeType = new JsonNativeTypeExtension { Datatype = Greptime.V1.ColumnDataType.Json }
+        };
+        columnSchema.Options = new ColumnOptions
+        {
+            Options =
+            {
+                ["ARROW:extension:name"] = "greptime.json2",
+                ["ARROW:extension:metadata"] =
+                    """{"json_settings":{"type_hints":[],"max_auto_expanded_paths":100},"layout_version":2}""",
+            }
+        };
+    }
+
     private static Greptime.V1.ColumnDataType ToProtoDataType(SdkColumnDataType dataType)
     {
         return dataType switch
@@ -230,7 +257,7 @@ internal static class RequestBuilder
             SdkColumnDataType.TimeMillisecond => Greptime.V1.ColumnDataType.TimeMillisecond,
             SdkColumnDataType.TimeMicrosecond => Greptime.V1.ColumnDataType.TimeMicrosecond,
             SdkColumnDataType.TimeNanosecond => Greptime.V1.ColumnDataType.TimeNanosecond,
-            SdkColumnDataType.Json => Greptime.V1.ColumnDataType.Json,
+            SdkColumnDataType.Json or SdkColumnDataType.Json2 => Greptime.V1.ColumnDataType.Json,
             _ => throw new NotSupportedException($"Unsupported data type: {dataType}")
         };
     }

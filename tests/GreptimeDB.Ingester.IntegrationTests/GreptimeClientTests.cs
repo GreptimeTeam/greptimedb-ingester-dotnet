@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using FluentAssertions;
 using GreptimeDB.Ingester.Client;
 using GreptimeDB.Ingester.Table;
@@ -71,6 +72,49 @@ public sealed class GreptimeClientTests : IAsyncLifetime, IDisposable
         var affectedRows = await Client.WriteAsync(table);
 
         affectedRows.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task WriteAsync_Json2WithAppendModeHint_RoundTrips()
+    {
+        var tableName = $"test_json2_{DateTime.UtcNow.Ticks}";
+        string[] payloads =
+        [
+            "null",
+            """{"nested":{"items":[1,"two",null,{"ok":false}]},"value":42}""",
+            """{"nested":{"other":true},"value":"changed"}""",
+            "{}",
+            """{"value":null}""",
+        ];
+
+        // The first request carries only NULL, so auto-creation must rely on the JSON2 schema marker.
+        // JSON2 tables require append_mode=true at creation.
+        for (var i = 0; i < payloads.Length; i++)
+        {
+            var table = new TableBuilder(tableName)
+                .AddField("payload", ColumnDataType.Json2)
+                .AddTimestamp("ts", ColumnDataType.TimestampMillisecond)
+                .AddRow(payloads[i], (long)i)
+                .Build();
+            var affectedRows = i == 0
+                ? await Client.WriteAsync(table, new Dictionary<string, string> { ["append_mode"] = "true" })
+                : await Client.WriteAsync(table);
+            affectedRows.Should().Be(1);
+        }
+
+        var createTable = await _fixture.QueryAsync($"SHOW CREATE TABLE {tableName}", _options.Database);
+        createTable[0][1].GetString().Should().Contain("JSON2");
+
+        var rows = await _fixture.QueryAsync($"SELECT json_get(payload, '') FROM {tableName} ORDER BY ts", _options.Database);
+        var actual = rows.EnumerateArray()
+            .Select(row => row[0].GetString() is { } json ? JsonNode.Parse(json) : null)
+            .ToList();
+        actual.Should().HaveCount(payloads.Length);
+        for (var i = 0; i < payloads.Length; i++)
+        {
+            JsonNode.DeepEquals(actual[i], JsonNode.Parse(payloads[i])).Should().BeTrue(
+                $"row {i} should round-trip {payloads[i]}, got {actual[i]?.ToJsonString() ?? "NULL"}");
+        }
     }
 
     [Fact]

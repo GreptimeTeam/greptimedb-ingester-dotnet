@@ -16,6 +16,7 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
 {
     private readonly GreptimeDatabase.GreptimeDatabaseClient _client;
     private readonly StreamIngestWriterOptions _options;
+    private readonly Metadata? _headers;
     private readonly Func<RequestHeader> _headerFactory;
     private readonly Action<Exception?>? _onSettle;
     private readonly ILogger _logger;
@@ -42,6 +43,7 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
 
         _client = client;
         _options = options;
+        _headers = RequestHints.ToMetadata(options.Hints, nameof(options.Hints));
         _headerFactory = headerFactory;
         _onSettle = onSettle;
         _logger = logger ?? NullLogger.Instance;
@@ -170,7 +172,9 @@ public sealed partial class StreamIngestWriter : IStreamIngestWriter
     {
         // Note: Don't set a deadline here - streaming operations may run for extended periods.
         // Timeout is handled in CompleteAsync which waits for this task to finish.
-        var callOptions = new CallOptions(cancellationToken: cancellationToken);
+        var callOptions = new CallOptions(
+            headers: _headers,
+            cancellationToken: cancellationToken);
 
         using var call = _client.HandleRequests(callOptions);
 

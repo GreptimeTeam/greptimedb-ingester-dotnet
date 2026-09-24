@@ -159,6 +159,48 @@ endpoint.
 - Health check
 - DI integration
 
+## Write Hints
+
+Hints are sent in the `x-greptime-hints` gRPC header. Table options such as `append_mode`
+and `ttl` apply when the server auto-creates a table.
+
+```csharp
+var hints = new Dictionary<string, string> { ["append_mode"] = "true", ["ttl"] = "7d" };
+
+var affectedRows = await client.WriteAsync(table, hints);
+
+await using var writer = client.CreateStreamIngestWriter(new StreamIngestWriterOptions
+{
+    Hints = hints
+});
+```
+
+Hint keys and values must be printable ASCII and must not contain `,`; keys must not contain `=`.
+
+## JSON2
+
+`ColumnDataType.Json2` stores JSON objects in GreptimeDB's native JSON format. It requires
+GreptimeDB 1.2.1 or later.
+
+```csharp
+var table = new TableBuilder("json2_logs")
+    .AddField("payload", ColumnDataType.Json2)
+    .AddTimestamp("ts", ColumnDataType.TimestampMillisecond)
+    .AddRow("""{"message":"hello","nested":{"items":[1,"two",null]},"ok":true}""", DateTime.UtcNow)
+    .AddRow("{}", DateTime.UtcNow)
+    .AddRow(null, DateTime.UtcNow)
+    .Build();
+
+// Tables with JSON2 columns require append_mode=true.
+var affectedRows = await client.WriteAsync(table, new Dictionary<string, string> { ["append_mode"] = "true" });
+```
+
+- Values are JSON strings. The top-level value must be an object or `null`; nested arrays and scalars are allowed.
+- `null` and the JSON text `"null"` are written as SQL NULL.
+- Invalid JSON is rejected by `AddRow` with `TypeMismatchException`.
+- Integers are sent as unsigned 64-bit when non-negative and signed 64-bit when negative. Fractions, exponents, and integers outside the 64-bit range are sent as double.
+- Supported for Field columns only, with unary and streaming writes. Bulk writes throw `NotSupportedException`.
+
 ## Streaming Write
 
 For high-throughput scenarios with multiple tables:
@@ -244,6 +286,7 @@ catch (GreptimeDB.Ingester.Exceptions.GreptimeException ex)
 - `DateTime` maps to microsecond timestamp semantics.
 - `Timestamp*` types preserve explicit precision (`Second`, `Millisecond`, `Microsecond`, `Nanosecond`).
 - `Json` is sent as JSON string content.
+- `Json2` is parsed and sent in GreptimeDB's native JSON format; see [JSON2](#json2).
 
 ## DI Integration
 
