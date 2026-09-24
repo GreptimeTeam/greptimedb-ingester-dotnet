@@ -15,6 +15,14 @@ A simple end-to-end test that writes 100 rows via gRPC and queries the results v
 dotnet run examples/quick-test.cs
 ```
 
+## JSON2
+
+Writes JSON2 values with the `append_mode=true` hint, then queries whole objects and JSON paths via MySQL protocol. Requires GreptimeDB 1.2.1 or later.
+
+```bash
+dotnet run examples/json2.cs
+```
+
 ## Benchmark
 
 Performance benchmark comparing all three write methods across different batch sizes and concurrency levels.
